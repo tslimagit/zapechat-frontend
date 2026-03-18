@@ -192,7 +192,7 @@ function QrCodePage(){
         <div style={{width:"80px",height:"80px",borderRadius:"50%",background:c.warnSoft,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}><WifiOff size={36} color={c.warn}/></div>
         <h2 style={{color:c.text,fontSize:"22px",fontWeight:"700",margin:"0 0 8px"}}>Conectar WhatsApp</h2>
         <p style={{color:c.textMut,fontSize:"14px",margin:"0 0 24px"}}>Escaneie o QR Code abaixo com seu WhatsApp</p>
-        {qrcode?<div style={{marginBottom:"24px"}}><img src={`data:image/png;base64,${qrcode}`} alt="QR Code" style={{width:"280px",height:"280px",borderRadius:"12px",border:`2px solid ${c.border}`}}/></div>
+        {qrcode?<div style={{marginBottom:"24px"}}><img src={qrcode.startsWith('data:')?qrcode:`data:image/png;base64,${qrcode}`} alt="QR Code" style={{width:"280px",height:"280px",borderRadius:"12px",border:`2px solid ${c.border}`}}/></div>
         :<button onClick={getQr} disabled={loading} style={{...btnP(c,loading),margin:"0 auto 24px"}}>{loading?<RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/>:<QrCode size={16}/>}{loading?"Gerando...":"Gerar QR Code"}</button>}
         <button onClick={getQr} disabled={loading} style={btnS(c)}><RefreshCw size={14}/>Atualizar QR Code</button>
         <p style={{color:c.textMut,fontSize:"12px",marginTop:"16px"}}>Abra o WhatsApp → Menu (⋮) → Dispositivos conectados → Conectar dispositivo</p>
