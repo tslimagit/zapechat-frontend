@@ -38,6 +38,7 @@ export const authApi = {
   listUsers: (params = {}) => api.get('/auth/users', { params }),
   updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
   deleteUser: (id) => api.delete(`/auth/users/${id}`),
+  disconnect: () => api.post('/auth/disconnect'),
 };
 
 export const messagesApi = {
