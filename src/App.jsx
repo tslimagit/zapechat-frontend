@@ -276,14 +276,21 @@ function SendMessagePage(){
     setShowPreview(false);setSending(true);
     try{
       if(media){
-        await messagesApi.sendMedia({number,mediaUrl:media.url,caption:message,mediaType:media.type,delay:parseInt(delay)});
+        await messagesApi.sendMedia({
+          number,
+          media: media.url,
+          caption: message,
+          mediaType: media.type,
+          mimetype: media.file?.type || 'image/png',
+          fileName: media.name || 'file',
+          delay: parseInt(delay)
+        });
       }else{
         await messagesApi.sendText(number,message,{delay:parseInt(delay)});
       }
       setToast({msg:"Mensagem enviada com sucesso!",type:"success"});setNumber("");setMessage("");setMedia(null);
     }catch(err){setToast({msg:err.response?.data?.error||"Falha ao enviar mensagem",type:"error"});}finally{setSending(false);}
   };
-
   const canSend=number&&(message||media);
 
   return(<div style={{padding:"24px",maxWidth:"700px"}}>
