@@ -39,6 +39,7 @@ export const authApi = {
 export const messagesApi = {
   sendText: (number, text, options = {}) => api.post('/messages/send-text', { number, text, ...options }),
   sendMedia: (data) => api.post('/messages/send-media', data),
+  sendAudio: (data) => api.post('/messages/send-audio', data),
   sendGroup: (groupJid, text, options = {}) => api.post('/messages/send-group', { groupJid, text, ...options }),
   checkWhatsApp: (numbers) => api.post('/messages/check-whatsapp', { numbers }),
   history: (params = {}) => api.get('/messages/history', { params }),
