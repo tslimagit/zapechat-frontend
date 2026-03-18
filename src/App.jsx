@@ -163,7 +163,9 @@ function AuthPage({onLogin}){
 // ==================== QR CODE PAGE ====================
 function QrCodePage(){
   const{dark}=useTheme();const c=C(dark);
-  const[qrcode,setQrcode]=useState(null);const[status,setStatus]=useState("loading");const[loading,setLoading]=useState(false);
+	const[qrcode,setQrcode]=useState(null);const[status,setStatus]=useState("loading");const[loading,setLoading]=useState(false);const[disconnecting,setDisconnecting]=useState(false);const[toast,setToast]=useState(null);
+
+  const disconnect=async()=>{setDisconnecting(true);try{await authApi.disconnect();setStatus("disconnected");setQrcode(null);setToast({msg:"WhatsApp desconectado!",type:"success"});}catch(e){setToast({msg:"Erro ao desconectar",type:"error"});}finally{setDisconnecting(false);}};
 
   const checkStatus=async()=>{
     try{const{data}=await authApi.connectionStatus();setStatus(data.connected?"connected":data.status);}catch(e){setStatus("error");}
@@ -176,12 +178,14 @@ function QrCodePage(){
 
   useEffect(()=>{checkStatus();const i=setInterval(checkStatus,5000);return()=>clearInterval(i);},[]);
 
-  if(status==="connected")return(
+if(status==="connected")return(
     <div style={{padding:"24px",display:"flex",justifyContent:"center"}}>
+      {toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
       <div style={{...card(c),maxWidth:"500px",textAlign:"center",padding:"40px"}}>
         <div style={{width:"80px",height:"80px",borderRadius:"50%",background:c.okSoft,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}><Wifi size={36} color={c.ok}/></div>
         <h2 style={{color:c.text,fontSize:"22px",fontWeight:"700",margin:"0 0 8px"}}>WhatsApp Conectado!</h2>
-        <p style={{color:c.textMut,fontSize:"14px",margin:0}}>Seu WhatsApp está pronto para enviar mensagens.</p>
+        <p style={{color:c.textMut,fontSize:"14px",margin:"0 0 24px"}}>Seu WhatsApp está pronto para enviar mensagens.</p>
+        <button onClick={disconnect} disabled={disconnecting} style={{...btnS(c),color:c.danger,borderColor:c.danger+"44"}}>{disconnecting?<RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/>:<WifiOff size={16}/>}{disconnecting?"Desconectando...":"Desconectar WhatsApp"}</button>
       </div>
     </div>
   );
