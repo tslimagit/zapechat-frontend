@@ -272,23 +272,30 @@ function SendMessagePage(){
   const[number,setNumber]=useState("");const[message,setMessage]=useState("");const[delay,setDelay]=useState("1000");
   const[media,setMedia]=useState(null);const[sending,setSending]=useState(false);const[toast,setToast]=useState(null);const[showPreview,setShowPreview]=useState(false);
 
-  const handleSend=async()=>{
+const handleSend=async()=>{
     setShowPreview(false);setSending(true);
     try{
-if(media){
-        // Remove o prefixo data:xxx;base64, para enviar só o base64 puro
+      if(media){
         const base64Data = media.url.includes('base64,') ? media.url.split('base64,')[1] : media.url;
-        await messagesApi.sendMedia({
-          number,
-          media: base64Data,
-          caption: message,
-          mediaType: media.type,
-          mimetype: media.file?.type || 'image/png',
-          fileName: media.name || 'file',
-          delay: parseInt(delay)
-        });
-      }
-        else{
+        if(media.type==='audio'){
+          // Usa endpoint específico de áudio do WhatsApp (bolinha verde)
+          await messagesApi.sendAudio({
+            number,
+            media: base64Data,
+            delay: parseInt(delay)
+          });
+        }else{
+          await messagesApi.sendMedia({
+            number,
+            media: base64Data,
+            caption: message,
+            mediaType: media.type,
+            mimetype: media.file?.type || 'image/png',
+            fileName: media.name || 'file',
+            delay: parseInt(delay)
+          });
+        }
+      }else{
         await messagesApi.sendText(number,message,{delay:parseInt(delay)});
       }
       setToast({msg:"Mensagem enviada com sucesso!",type:"success"});setNumber("");setMessage("");setMedia(null);
