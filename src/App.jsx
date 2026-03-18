@@ -63,8 +63,10 @@ function Toast({msg,type,onClose}){
 // ==================== MEDIA PICKER ====================
 function MediaPicker({onSelect,selected,onRemove}){
   const{dark}=useTheme();const c=C(dark);const ref=useRef();
-  const types=[{id:"image",icon:Image,label:"Imagem",accept:"image/jpeg,image/png,image/webp"},{id:"video",icon:Video,label:"Vídeo",accept:"video/mp4,video/webm"},{id:"audio",icon:Mic,label:"Áudio",accept:"audio/mpeg,audio/ogg,audio/mp4"},{id:"document",icon:FileText,label:"Documento",accept:".pdf,.docx,.xlsx,.txt,.csv"}];
+  const types=[{id:"image",icon:Image,label:"Imagem",accept:"image/jpeg,image/png,image/webp"},{id:"video",icon:Video,label:"Vídeo"},{id:"audio",icon:Mic,label:"Áudio",accept:"audio/mpeg,audio/ogg,audio/mp4"},{id:"document",icon:FileText,label:"Documento",accept:".pdf,.docx,.xlsx,.txt,.csv"}];
   const[activeType,setActiveType]=useState(null);
+  const[videoUrl,setVideoUrl]=useState("");
+  const[showVideoInput,setShowVideoInput]=useState(false);
 
   const handleFile=(e)=>{
     const file=e.target.files[0];if(!file)return;
@@ -72,6 +74,12 @@ function MediaPicker({onSelect,selected,onRemove}){
     reader.onload=()=>{onSelect({file,type:activeType,name:file.name,size:file.size,preview:activeType==="image"?reader.result:null,url:reader.result});};
     reader.readAsDataURL(file);
     setActiveType(null);
+  };
+
+  const handleVideoUrl=()=>{
+    if(!videoUrl.trim())return;
+    onSelect({file:null,type:"video",name:videoUrl.split('/').pop()||"video.mp4",size:0,preview:null,url:videoUrl.trim(),isUrl:true});
+    setShowVideoInput(false);setVideoUrl("");
   };
 
   if(selected)return(
@@ -82,7 +90,7 @@ function MediaPicker({onSelect,selected,onRemove}){
       </div>}
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:"13px",fontWeight:"600",color:c.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selected.name}</div>
-        <div style={{fontSize:"12px",color:c.textMut}}>{(selected.size/1024).toFixed(0)} KB • {selected.type}</div>
+        <div style={{fontSize:"12px",color:c.textMut}}>{selected.size?(selected.size/1024).toFixed(0)+" KB • ":""}{selected.type}{selected.isUrl?" (URL)":""}</div>
       </div>
       <button onClick={onRemove} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"4px"}}><X size={18}/></button>
     </div>
@@ -91,13 +99,21 @@ function MediaPicker({onSelect,selected,onRemove}){
   return(<div style={{marginBottom:"16px"}}>
     <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
       {types.map(t=>(
-        <button key={t.id} onClick={()=>{setActiveType(t.id);setTimeout(()=>ref.current?.click(),50);}} style={{padding:"8px 14px",borderRadius:"10px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",transition:"all 0.2s"}}
+        <button key={t.id} onClick={()=>{
+          if(t.id==="video"){setShowVideoInput(true);return;}
+          setActiveType(t.id);setTimeout(()=>ref.current?.click(),50);
+        }} style={{padding:"8px 14px",borderRadius:"10px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",transition:"all 0.2s"}}
           onMouseEnter={e=>{e.currentTarget.style.borderColor=c.accent;e.currentTarget.style.color=c.accent;}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor=c.border;e.currentTarget.style.color=c.textSec;}}>
           <t.icon size={14}/>{t.label}
         </button>
       ))}
     </div>
+    {showVideoInput&&<div style={{marginTop:"10px",display:"flex",gap:"8px"}}>
+      <input value={videoUrl} onChange={e=>setVideoUrl(e.target.value)} placeholder="Cole a URL do vídeo (ex: https://...mp4)" style={{...inp(c),flex:1}} onKeyDown={e=>e.key==='Enter'&&handleVideoUrl()}/>
+      <button onClick={handleVideoUrl} disabled={!videoUrl.trim()} style={{...btn(c,!videoUrl.trim()),padding:"10px 16px",fontSize:"12px"}}>OK</button>
+      <button onClick={()=>{setShowVideoInput(false);setVideoUrl("");}} style={{background:"none",border:"none",cursor:"pointer",color:c.textMut}}><X size={18}/></button>
+    </div>}
     <input ref={ref} type="file" accept={types.find(t=>t.id===activeType)?.accept||"*"} onChange={handleFile} style={{display:"none"}}/>
   </div>);
 }
@@ -276,24 +292,14 @@ const handleSend=async()=>{
     setShowPreview(false);setSending(true);
     try{
       if(media){
-        const base64Data = media.url.includes('base64,') ? media.url.split('base64,')[1] : media.url;
         if(media.type==='audio'){
-          // Usa endpoint específico de áudio do WhatsApp (bolinha verde)
-          await messagesApi.sendAudio({
-            number,
-            media: base64Data,
-            delay: parseInt(delay)
-          });
+          const base64Data = media.url.includes('base64,') ? media.url.split('base64,')[1] : media.url;
+          await messagesApi.sendAudio({number,media:base64Data,delay:parseInt(delay)});
+        }else if(media.isUrl){
+          await messagesApi.sendMedia({number,media:media.url,caption:message,mediaType:media.type,mimetype:'video/mp4',fileName:media.name||'video.mp4',delay:parseInt(delay)});
         }else{
-          await messagesApi.sendMedia({
-            number,
-            media: base64Data,
-            caption: message,
-            mediaType: media.type,
-            mimetype: media.file?.type || 'image/png',
-            fileName: media.name || 'file',
-            delay: parseInt(delay)
-          });
+          const base64Data = media.url.includes('base64,') ? media.url.split('base64,')[1] : media.url;
+          await messagesApi.sendMedia({number,media:base64Data,caption:message,mediaType:media.type,mimetype:media.file?.type||'image/png',fileName:media.name||'file',delay:parseInt(delay)});
         }
       }else{
         await messagesApi.sendText(number,message,{delay:parseInt(delay)});
