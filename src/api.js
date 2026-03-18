@@ -28,12 +28,16 @@ api.interceptors.response.use(
 
 export const authApi = {
   login: (email, password) => api.post('/auth/login', { email, password }),
+  signup: (data) => api.post('/auth/signup', data),
   me: () => api.get('/auth/me'),
+  qrcode: () => api.get('/auth/qrcode'),
+  connectionStatus: () => api.get('/auth/connection-status'),
   updateProfile: (data) => api.put('/auth/profile', data),
   changePassword: (data) => api.put('/auth/password', data),
   register: (data) => api.post('/auth/register', data),
-  listUsers: () => api.get('/auth/users'),
+  listUsers: (params = {}) => api.get('/auth/users', { params }),
   updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
+  deleteUser: (id) => api.delete(`/auth/users/${id}`),
 };
 
 export const messagesApi = {
