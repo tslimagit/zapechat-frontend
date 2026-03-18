@@ -275,17 +275,20 @@ function SendMessagePage(){
   const handleSend=async()=>{
     setShowPreview(false);setSending(true);
     try{
-      if(media){
+if(media){
+        // Remove o prefixo data:xxx;base64, para enviar só o base64 puro
+        const base64Data = media.url.includes('base64,') ? media.url.split('base64,')[1] : media.url;
         await messagesApi.sendMedia({
           number,
-          media: media.url,
+          media: base64Data,
           caption: message,
           mediaType: media.type,
           mimetype: media.file?.type || 'image/png',
           fileName: media.name || 'file',
           delay: parseInt(delay)
         });
-      }else{
+      }
+        else{
         await messagesApi.sendText(number,message,{delay:parseInt(delay)});
       }
       setToast({msg:"Mensagem enviada com sucesso!",type:"success"});setNumber("");setMessage("");setMedia(null);
