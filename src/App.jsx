@@ -5,7 +5,7 @@ import {
   RefreshCw, Play, Pause, Hash, Globe, Phone, Image, FileText, Video, Mic, Calendar,
   Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight
 } from "lucide-react";
-import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, automationsApi, instancesApi } from "./api";
+import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi } from "./api";
 
 // ==================== THEME ====================
 const ThemeContext = createContext();
@@ -63,18 +63,49 @@ function Toast({msg,type,onClose}){
 function MediaPicker({onSelect,selected,onRemove}){
   const{dark}=useTheme();const c=C(dark);const ref=useRef();
   const types=[{id:"image",icon:Image,label:"Imagem",accept:"image/jpeg,image/png,image/webp"},{id:"video",icon:Video,label:"Vídeo"},{id:"audio",icon:Mic,label:"Áudio",accept:"audio/mpeg,audio/ogg,audio/mp4"},{id:"document",icon:FileText,label:"Documento",accept:".pdf,.docx,.xlsx,.txt,.csv"}];
-  const[activeType,setActiveType]=useState(null);const[videoUrl,setVideoUrl]=useState("");const[showVideoInput,setShowVideoInput]=useState(false);
-  const handleFile=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{onSelect({file,type:activeType,name:file.name,size:file.size,preview:activeType==="image"?reader.result:null,url:reader.result});};reader.readAsDataURL(file);setActiveType(null);};
+  const[activeType,setActiveType]=useState(null);const[videoUrl,setVideoUrl]=useState("");const[showVideoInput,setShowVideoInput]=useState(false);const[uploading,setUploading]=useState(false);
+
+  const handleFile=async(e)=>{const file=e.target.files[0];if(!file)return;
+    const sizeMB=file.size/(1024*1024);
+    // Arquivos grandes (>5MB) ou vídeos/áudios vão pro MinIO
+    if(sizeMB>5||activeType==="video"||activeType==="audio"){
+      setUploading(true);
+      try{
+        const reader=new FileReader();
+        reader.onload=async()=>{
+          const base64=reader.result.includes('base64,')?reader.result.split('base64,')[1]:reader.result;
+          const{data}=await uploadApi.upload({file:base64,mimetype:file.type,fileName:file.name});
+          onSelect({file:null,type:activeType,name:file.name,size:file.size,preview:activeType==="image"?reader.result:null,url:data.url,isUrl:true,minioObject:data.objectName});
+          setActiveType(null);setUploading(false);
+        };
+        reader.readAsDataURL(file);
+      }catch(err){console.error("Upload falhou:",err);setUploading(false);
+        // Fallback: usar base64 direto
+        const reader2=new FileReader();
+        reader2.onload=()=>{onSelect({file,type:activeType,name:file.name,size:file.size,preview:activeType==="image"?reader2.result:null,url:reader2.result});setActiveType(null);};
+        reader2.readAsDataURL(file);
+      }
+    }else{
+      const reader=new FileReader();
+      reader.onload=()=>{onSelect({file,type:activeType,name:file.name,size:file.size,preview:activeType==="image"?reader.result:null,url:reader.result});setActiveType(null);};
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleVideoUrl=()=>{if(!videoUrl.trim())return;onSelect({file:null,type:"video",name:videoUrl.split('/').pop()||"video.mp4",size:0,preview:null,url:videoUrl.trim(),isUrl:true});setShowVideoInput(false);setVideoUrl("");};
+
+  if(uploading)return(<div style={{background:c.bgInput,borderRadius:"12px",padding:"18px",marginBottom:"16px",border:`1px solid ${c.border}`,textAlign:"center"}}><RefreshCw size={20} color={c.accent} style={{animation:"spin 1s linear infinite",marginBottom:"8px"}}/><div style={{fontSize:"13px",color:c.textSec,fontWeight:"600"}}>Enviando arquivo...</div><div style={{fontSize:"11px",color:c.textMut,marginTop:"4px"}}>Upload para o servidor</div></div>);
+
   if(selected)return(<div style={{background:c.bgInput,borderRadius:"12px",padding:"14px",display:"flex",alignItems:"center",gap:"12px",marginBottom:"16px",border:`1px solid ${c.border}`}}>
     {selected.preview?<img src={selected.preview} alt="" style={{width:"60px",height:"60px",borderRadius:"8px",objectFit:"cover"}}/>:<div style={{width:"48px",height:"48px",borderRadius:"8px",background:c.accentSoft,display:"flex",alignItems:"center",justifyContent:"center"}}>{selected.type==="video"?<Video size={20} color={c.accent}/>:selected.type==="audio"?<Mic size={20} color={c.accent}/>:<FileText size={20} color={c.accent}/>}</div>}
     <div style={{flex:1,minWidth:0}}><div style={{fontSize:"13px",fontWeight:"600",color:c.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selected.name}</div><div style={{fontSize:"12px",color:c.textMut}}>{selected.size?(selected.size/1024).toFixed(0)+" KB • ":""}{selected.type}{selected.isUrl?" (URL)":""}</div></div>
     <button onClick={onRemove} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"4px"}}><X size={18}/></button>
   </div>);
+
   return(<div style={{marginBottom:"16px"}}>
     <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>{types.map(t=><button key={t.id} onClick={()=>{if(t.id==="video"){setShowVideoInput(true);return;}setActiveType(t.id);setTimeout(()=>ref.current?.click(),50);}} style={{padding:"8px 14px",borderRadius:"10px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",transition:"all 0.2s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=c.accent;e.currentTarget.style.color=c.accent;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=c.border;e.currentTarget.style.color=c.textSec;}}><t.icon size={14}/>{t.label}</button>)}</div>
-    {showVideoInput&&<div style={{marginTop:"10px",display:"flex",gap:"8px"}}><input value={videoUrl} onChange={e=>setVideoUrl(e.target.value)} placeholder="Cole a URL do vídeo (https://...mp4)" style={{...inp(c),flex:1}} onKeyDown={e=>e.key==='Enter'&&handleVideoUrl()}/><button onClick={handleVideoUrl} disabled={!videoUrl.trim()} style={{...btnP(c,!videoUrl.trim()),padding:"10px 16px",fontSize:"12px"}}>OK</button><button onClick={()=>{setShowVideoInput(false);setVideoUrl("");}} style={{background:"none",border:"none",cursor:"pointer",color:c.textMut}}><X size={18}/></button></div>}
-    <input ref={ref} type="file" accept={types.find(t=>t.id===activeType)?.accept||"*"} onChange={handleFile} style={{display:"none"}}/>
+    {showVideoInput&&<div style={{marginTop:"10px"}}><div style={{display:"flex",gap:"8px",marginBottom:"8px"}}><input value={videoUrl} onChange={e=>setVideoUrl(e.target.value)} placeholder="Cole a URL do vídeo (https://...mp4)" style={{...inp(c),flex:1}} onKeyDown={e=>e.key==='Enter'&&handleVideoUrl()}/><button onClick={handleVideoUrl} disabled={!videoUrl.trim()} style={{...btnP(c,!videoUrl.trim()),padding:"10px 16px",fontSize:"12px"}}>OK</button><button onClick={()=>{setShowVideoInput(false);setVideoUrl("");}} style={{background:"none",border:"none",cursor:"pointer",color:c.textMut}}><X size={18}/></button></div><div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}><div style={{flex:1,height:"1px",background:c.border}}/><span style={{fontSize:"11px",color:c.textMut}}>ou</span><div style={{flex:1,height:"1px",background:c.border}}/></div><button onClick={()=>{setActiveType("video");setShowVideoInput(false);setTimeout(()=>ref.current?.click(),50);}} style={{...btnS(c),width:"100%",justifyContent:"center",fontSize:"12px",marginTop:"4px"}}><Upload size={14}/>Upload de vídeo (via MinIO)</button></div>}
+    <input ref={ref} type="file" accept={activeType==="video"?"video/mp4,video/webm,video/avi":types.find(t=>t.id===activeType)?.accept||"*"} onChange={handleFile} style={{display:"none"}}/>
   </div>);
 }
 
