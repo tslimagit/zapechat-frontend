@@ -98,6 +98,15 @@ export const reportsApi = {
   exportPdf: (params = {}) => api.get('/reports/export/pdf', { params, responseType: 'blob' }),
 };
 
+export const automationsApi = {
+  list: () => api.get('/automations'),
+  create: (data) => api.post('/automations', data),
+  update: (id, data) => api.put(`/automations/${id}`, data),
+  delete: (id) => api.delete(`/automations/${id}`),
+  logs: (params = {}) => api.get('/automations/logs', { params }),
+  webhookUrl: () => api.get('/automations/webhook-url'),
+};
+
 export const instancesApi = {
   list: () => api.get('/instances'),
   create: (instanceName) => api.post('/instances', { instanceName }),
