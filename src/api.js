@@ -118,4 +118,8 @@ export const automationsApi = {
   logs: (params = {}) => api.get('/automations/logs', { params }),
 };
 
+export const uploadApi = {
+  upload: (data) => api.post('/upload', data),
+};
+
 export default api;
