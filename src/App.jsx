@@ -242,15 +242,6 @@ function AutomationsPage(){
   return(<div style={{padding:"24px"}}>
     {toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
  
-    {/* Webhook URL */}
-    <div style={{...card(c),marginBottom:"16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>
-      <div><h4 style={{margin:"0 0 4px",fontSize:"14px",fontWeight:"700",color:c.text}}>URL do Webhook</h4><p style={{margin:0,fontSize:"12px",color:c.textMut}}>Cole essa URL na Hotmart, Eduzz, Kiwify ou Voomp</p></div>
-      <div style={{display:"flex",gap:"8px",alignItems:"center",flex:1,minWidth:"300px"}}>
-        <input value={webhookUrl} readOnly style={{...inp(c),fontSize:"12px",fontFamily:"monospace",flex:1}} onClick={copyUrl}/>
-        <button onClick={copyUrl} style={{...btnP(c,false),padding:"10px 16px",fontSize:"12px",whiteSpace:"nowrap"}}>Copiar</button>
-      </div>
-    </div>
- 
     {/* Tabs */}
     <div style={{display:"flex",gap:"8px",marginBottom:"16px"}}>
       <button onClick={()=>setTab("list")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="list"?c.accent:c.bgInput,color:tab==="list"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Automações</button>
@@ -307,7 +298,7 @@ function AutomationsPage(){
       <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Suas Automações</h3>
       {automations.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhuma automação criada. Clique em "Nova Automação".</p>:
       <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
-        {["Nome","Plataforma","Evento","Enviadas","Falhas","Status","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
+        {["Nome","Plataforma","Evento","Enviadas","Falhas","Status","Webhook","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
       </tr></thead><tbody>
         {automations.map(a=><tr key={a.id} onMouseEnter={e=>e.currentTarget.style.background=c.bgCardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
           <td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{a.name}</td>
@@ -320,6 +311,7 @@ function AutomationsPage(){
               {a.is_active?<ToggleRight size={18}/>:<ToggleLeft size={18}/>}{a.is_active?"Ativa":"Inativa"}
             </button>
           </td>
+          <td style={{padding:"10px 12px"}}><button onClick={()=>{navigator.clipboard?.writeText(a.webhook_url);setToast({msg:"URL copiada!",type:"success"});}} style={{...btnS(c),padding:"5px 10px",fontSize:"11px"}}>Copiar URL</button></td>
           <td style={{padding:"10px 12px",display:"flex",gap:"6px"}}>
             <button onClick={()=>startEdit(a)} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}} title="Editar"><Edit size={15}/></button>
             <button onClick={()=>deleteAuto(a)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}} title="Remover"><Trash2 size={15}/></button>
