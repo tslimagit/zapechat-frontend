@@ -5,7 +5,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 30000,
+  timeout: 60000,
 });
 
 api.interceptors.request.use((config) => {
@@ -52,7 +52,7 @@ export const messagesApi = {
 
 export const campaignsApi = {
   create: (data) => api.post('/campaigns', data),
-  start: (id) => api.post(`/campaigns/${id}/start`),
+  start: (id, data = {}) => api.post(`/campaigns/${id}/start`, data),
   pause: (id) => api.post(`/campaigns/${id}/pause`),
   list: (params = {}) => api.get('/campaigns', { params }),
   get: (id) => api.get(`/campaigns/${id}`),
@@ -63,11 +63,14 @@ export const groupsApi = {
   sync: () => api.get('/groups/sync'),
   list: () => api.get('/groups'),
   create: (data) => api.post('/groups/create', data),
+  createMultiple: (data) => api.post('/groups/create-multiple', data),
   info: (jid) => api.get(`/groups/${jid}/info`),
   members: (jid) => api.get(`/groups/${jid}/members`),
   send: (jid, text, options = {}) => api.post(`/groups/${jid}/send`, { text, ...options }),
+  sendMedia: (jid, data) => api.post(`/groups/${jid}/send-media`, data),
   sendPoll: (jid, data) => api.post(`/groups/${jid}/send-poll`, data),
   sendContact: (jid, data) => api.post(`/groups/${jid}/send-contact`, data),
+  massSend: (data) => api.post('/groups/mass-send', data),
   updateSubject: (jid, subject) => api.put(`/groups/${jid}/subject`, { subject }),
   updateDescription: (jid, description) => api.put(`/groups/${jid}/description`, { description }),
   updatePicture: (jid, image) => api.put(`/groups/${jid}/picture`, { image }),
@@ -98,15 +101,6 @@ export const reportsApi = {
   exportPdf: (params = {}) => api.get('/reports/export/pdf', { params, responseType: 'blob' }),
 };
 
-export const automationsApi = {
-  list: () => api.get('/automations'),
-  create: (data) => api.post('/automations', data),
-  update: (id, data) => api.put(`/automations/${id}`, data),
-  delete: (id) => api.delete(`/automations/${id}`),
-  logs: (params = {}) => api.get('/automations/logs', { params }),
-  webhookUrl: () => api.get('/automations/webhook-url'),
-};
-
 export const instancesApi = {
   list: () => api.get('/instances'),
   create: (instanceName) => api.post('/instances', { instanceName }),
@@ -114,6 +108,14 @@ export const instancesApi = {
   status: (name) => api.get(`/instances/status/${name}`),
   delete: (name) => api.delete(`/instances/${name}`),
   setWebhook: (name, webhookUrl) => api.post(`/instances/${name}/webhook`, { webhookUrl }),
+};
+
+export const automationsApi = {
+  list: () => api.get('/automations'),
+  create: (data) => api.post('/automations', data),
+  update: (id, data) => api.put(`/automations/${id}`, data),
+  delete: (id) => api.delete(`/automations/${id}`),
+  logs: (params = {}) => api.get('/automations/logs', { params }),
 };
 
 export default api;
