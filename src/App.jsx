@@ -194,8 +194,8 @@ function AutomationsPage(){
  
   const load=async()=>{
     try{
-      const[autoRes,logRes,urlRes]=await Promise.all([automationsApi.list(),automationsApi.logs({limit:20}),automationsApi.webhookUrl()]);
-      setAutomations(autoRes.data.automations||[]);setLogs(logRes.data.logs||[]);setWebhookUrl(urlRes.data.webhookUrl||"");
+      const[autoRes,logRes]=await Promise.all([automationsApi.list(),automationsApi.logs({limit:20})]);
+      setAutomations(autoRes.data.automations||[]);setLogs(logRes.data.logs||[]);
     }catch(e){console.error(e);}finally{setLoading(false);}
   };
   useEffect(()=>{load();},[]);
