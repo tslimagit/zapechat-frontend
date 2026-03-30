@@ -118,6 +118,20 @@ export const automationsApi = {
   logs: (params = {}) => api.get('/automations/logs', { params }),
 };
 
+// ==========================================
+// ADICIONAR NO api.js - após automationsApi:
+// ==========================================
+
+export const aiAssistantsApi = {
+  list: () => api.get('/ai-assistants'),
+  create: (data) => api.post('/ai-assistants', data),
+  update: (id, data) => api.put(`/ai-assistants/${id}`, data),
+  delete: (id) => api.delete(`/ai-assistants/${id}`),
+  toggle: (id) => api.post(`/ai-assistants/${id}/toggle`),
+  conversations: (id) => api.get(`/ai-assistants/${id}/conversations`),
+  clearConversations: (id) => api.delete(`/ai-assistants/${id}/conversations`),
+};
+
 export const uploadApi = {
   upload: (data) => api.post('/upload', data),
 };
