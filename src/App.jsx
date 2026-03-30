@@ -867,20 +867,6 @@ function ContactsPage(){const{dark}=useTheme();const c=C(dark);const[contacts,se
 function SettingsPage({user,onProfileUpdate}){const{dark}=useTheme();const c=C(dark);const[name,setName]=useState(user?.name||"");const[company,setCompany]=useState(user?.company||"");const[phone,setPhone]=useState(user?.phone||"");const[saving,setSaving]=useState(false);const[toast,setToast]=useState(null);const save=async()=>{setSaving(true);try{const{data}=await authApi.updateProfile({name,company,phone});setToast({msg:"Perfil atualizado!",type:"success"});if(onProfileUpdate)onProfileUpdate(data.user);}catch(e){setToast({msg:"Erro",type:"error"});}finally{setSaving(false);}};return(<div style={{padding:"24px",maxWidth:"700px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}<div style={card(c)}><div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}}><Settings size={20} color={c.accent}/><h3 style={{margin:0,fontSize:"18px",fontWeight:"700",color:c.text}}>Meu Perfil</h3></div><p style={{margin:"0 0 22px",fontSize:"13px",color:c.textMut}}>Edite suas informações</p><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome</label><input value={name} onChange={e=>setName(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Empresa</label><input value={company} onChange={e=>setCompany(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Telefone</label><input value={phone} onChange={e=>setPhone(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Instância WhatsApp</label><div style={{padding:"12px 16px",background:c.bgInput,borderRadius:"12px",color:c.textSec,fontSize:"14px",border:`1px solid ${c.border}`}}>{user?.evolution_instance||"Não configurada"}</div></div><button onClick={save} disabled={saving} style={btnP(c,saving)}>{saving?"Salvando...":"Salvar"}</button></div></div>);}
 
 // ==========================================
-// ADICIONAR NO api.js - após automationsApi:
-// ==========================================
-
-export const aiAssistantsApi = {
-  list: () => api.get('/ai-assistants'),
-  create: (data) => api.post('/ai-assistants', data),
-  update: (id, data) => api.put(`/ai-assistants/${id}`, data),
-  delete: (id) => api.delete(`/ai-assistants/${id}`),
-  toggle: (id) => api.post(`/ai-assistants/${id}/toggle`),
-  conversations: (id) => api.get(`/ai-assistants/${id}/conversations`),
-  clearConversations: (id) => api.delete(`/ai-assistants/${id}/conversations`),
-};
-
-// ==========================================
 // NOVA AIAssistantPage - Adicionar no App.jsx
 // Não esqueça de:
 // 1. Importar aiAssistantsApi no topo
