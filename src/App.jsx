@@ -1041,7 +1041,7 @@ function AIAssistantPage(){
       {step===2&&<>
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Instruções de Comportamento</label>
           <textarea value={form.system_prompt} onChange={e=>setForm({...form,system_prompt:e.target.value})} rows={5} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Ex: Você é um agente de suporte..."/>
-          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"11px",color:c.textMut}}>Define como a IA se comporta</span><span style={{fontSize:"11px",color:form.system_prompt.length>900?c.danger:c.textMut}}>{form.system_prompt.length}/1000</span></div>
+          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"11px",color:c.textMut}}>Define como a IA se comporta</span><span style={{fontSize:"11px",color:form.system_prompt.length>900?c.danger:c.textMut}}>{form.system_prompt.length}/3000</span></div>
         </div>
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Texto de Treinamento (Base de Conhecimento)</label>
           <textarea value={form.training_text} onChange={e=>setForm({...form,training_text:e.target.value})} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Cole informações sobre seu produto, FAQ, etc."/>
