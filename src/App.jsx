@@ -867,170 +867,216 @@ function ContactsPage(){const{dark}=useTheme();const c=C(dark);const[contacts,se
 function SettingsPage({user,onProfileUpdate}){const{dark}=useTheme();const c=C(dark);const[name,setName]=useState(user?.name||"");const[company,setCompany]=useState(user?.company||"");const[phone,setPhone]=useState(user?.phone||"");const[saving,setSaving]=useState(false);const[toast,setToast]=useState(null);const save=async()=>{setSaving(true);try{const{data}=await authApi.updateProfile({name,company,phone});setToast({msg:"Perfil atualizado!",type:"success"});if(onProfileUpdate)onProfileUpdate(data.user);}catch(e){setToast({msg:"Erro",type:"error"});}finally{setSaving(false);}};return(<div style={{padding:"24px",maxWidth:"700px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}<div style={card(c)}><div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}}><Settings size={20} color={c.accent}/><h3 style={{margin:0,fontSize:"18px",fontWeight:"700",color:c.text}}>Meu Perfil</h3></div><p style={{margin:"0 0 22px",fontSize:"13px",color:c.textMut}}>Edite suas informações</p><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome</label><input value={name} onChange={e=>setName(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Empresa</label><input value={company} onChange={e=>setCompany(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Telefone</label><input value={phone} onChange={e=>setPhone(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Instância WhatsApp</label><div style={{padding:"12px 16px",background:c.bgInput,borderRadius:"12px",color:c.textSec,fontSize:"14px",border:`1px solid ${c.border}`}}>{user?.evolution_instance||"Não configurada"}</div></div><button onClick={save} disabled={saving} style={btnP(c,saving)}>{saving?"Salvando...":"Salvar"}</button></div></div>);}
 
 // ==========================================
-// NOVA AIAssistantPage - Adicionar no App.jsx
-// Não esqueça de:
-// 1. Importar aiAssistantsApi no topo
-// 2. Adicionar {id:"ai",icon:Zap,label:"Assistente IA"} no nav do Sidebar (antes de automations)
-// 3. Adicionar {page==="ai"&&<AIAssistantPage/>} no MainContent
-// 4. Adicionar ai:["Assistente IA","Resposta automática com IA"] no titles
+// NOVA AIAssistantPage COMPLETA v2
+// Substitua a função AIAssistantPage inteira no App.jsx
+// Não esqueça de importar apiKeysApi no import do topo
 // ==========================================
-
+ 
 function AIAssistantPage(){
   const{dark}=useTheme();const c=C(dark);
   const[assistants,setAssistants]=useState([]);const[loading,setLoading]=useState(true);const[toast,setToast]=useState(null);
   const[showForm,setShowForm]=useState(false);const[editId,setEditId]=useState(null);const[step,setStep]=useState(1);
   const[conversations,setConversations]=useState([]);const[viewConvId,setViewConvId]=useState(null);
-
+ 
+  // API Keys state
+  const[apiKeys,setApiKeys]=useState([]);const[showKeyForm,setShowKeyForm]=useState(false);
+  const[keyForm,setKeyForm]=useState({name:"",provider:"openai",api_key:""});const[savingKey,setSavingKey]=useState(false);
+ 
   // Form state
   const[form,setForm]=useState({
-    name:"",provider:"openai",model:"gpt-4o-mini",api_key:"",
+    name:"",provider:"openai",model:"gpt-4o-mini",api_key_id:"",api_key:"",
     system_prompt:"Você é um assistente útil e amigável. Responda de forma clara e objetiva.",
     training_text:"",response_delay:2,answer_without_question:false,
     first_response_text:"",respond_admins:false,scope:"private",
     max_tokens:1000,temperature:0.7,
   });
-
+ 
   const providers=[
     {id:"openai",label:"OpenAI (ChatGPT)",models:[{id:"gpt-4o",label:"GPT-4o"},{id:"gpt-4o-mini",label:"GPT-4o Mini"},{id:"gpt-4.1-mini",label:"GPT-4.1 Mini"},{id:"gpt-4.1-nano",label:"GPT-4.1 Nano"}]},
     {id:"anthropic",label:"Anthropic (Claude)",models:[{id:"claude-sonnet-4-20250514",label:"Claude Sonnet 4"},{id:"claude-haiku-4-5-20251001",label:"Claude Haiku 4.5"}]},
     {id:"gemini",label:"Google (Gemini)",models:[{id:"gemini-2.0-flash",label:"Gemini 2.0 Flash"},{id:"gemini-2.5-flash-preview-05-20",label:"Gemini 2.5 Flash"},{id:"gemini-2.5-pro-preview-05-06",label:"Gemini 2.5 Pro"}]},
   ];
-
+ 
   const currentModels=providers.find(p=>p.id===form.provider)?.models||[];
-
-  const load=async()=>{try{const{data}=await aiAssistantsApi.list();setAssistants(data.assistants||[]);}catch(e){}finally{setLoading(false);}};
-  useEffect(()=>{load();},[]);
-
-  const resetForm=()=>{setForm({name:"",provider:"openai",model:"gpt-4o-mini",api_key:"",system_prompt:"Você é um assistente útil e amigável. Responda de forma clara e objetiva.",training_text:"",response_delay:2,answer_without_question:false,first_response_text:"",respond_admins:false,scope:"private",max_tokens:1000,temperature:0.7});setStep(1);setEditId(null);};
-
-  const save=async()=>{
-    if(!form.name||!form.api_key){setToast({msg:"Preencha nome e API Key",type:"error"});return;}
+  const filteredKeys=apiKeys.filter(k=>k.provider===form.provider&&k.is_active);
+ 
+  const load=async()=>{
     try{
-      if(editId){await aiAssistantsApi.update(editId,form);setToast({msg:"Assistente atualizado!",type:"success"});}
-      else{await aiAssistantsApi.create(form);setToast({msg:"Assistente criado! Webhook configurado automaticamente.",type:"success"});}
+      const[aRes,kRes]=await Promise.all([aiAssistantsApi.list(),apiKeysApi.list()]);
+      setAssistants(aRes.data.assistants||[]);setApiKeys(kRes.data.keys||[]);
+    }catch(e){}finally{setLoading(false);}
+  };
+  useEffect(()=>{load();},[]);
+ 
+  const resetForm=()=>{setForm({name:"",provider:"openai",model:"gpt-4o-mini",api_key_id:"",api_key:"",system_prompt:"Você é um assistente útil e amigável. Responda de forma clara e objetiva.",training_text:"",response_delay:2,answer_without_question:false,first_response_text:"",respond_admins:false,scope:"private",max_tokens:1000,temperature:0.7});setStep(1);setEditId(null);};
+ 
+  // API Key CRUD
+  const saveKey=async()=>{
+    if(!keyForm.name||!keyForm.api_key){setToast({msg:"Preencha nome e chave",type:"error"});return;}
+    setSavingKey(true);
+    try{
+      await apiKeysApi.create(keyForm);
+      setToast({msg:"Chave salva!",type:"success"});setShowKeyForm(false);setKeyForm({name:"",provider:"openai",api_key:""});
+      const{data}=await apiKeysApi.list();setApiKeys(data.keys||[]);
+    }catch(e){setToast({msg:"Erro ao salvar chave",type:"error"});}finally{setSavingKey(false);}
+  };
+  const deleteKey=async(id)=>{
+    if(!confirm("Remover esta chave?"))return;
+    try{await apiKeysApi.delete(id);setToast({msg:"Chave removida!",type:"success"});const{data}=await apiKeysApi.list();setApiKeys(data.keys||[]);}catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  // Assistant CRUD
+  const save=async()=>{
+    if(!form.name){setToast({msg:"Preencha o nome",type:"error"});return;}
+    if(!form.api_key_id&&!form.api_key){setToast({msg:"Selecione ou cadastre uma API Key",type:"error"});return;}
+    try{
+      const payload={...form};
+      // Se selecionou uma key existente, buscar a key real pra salvar no assistente
+      if(form.api_key_id&&!form.api_key){
+        // Backend vai buscar pela api_key_id
+        payload.api_key=form.api_key_id; // Temporário, o backend resolve
+      }
+      if(editId){await aiAssistantsApi.update(editId,payload);setToast({msg:"Assistente atualizado!",type:"success"});}
+      else{await aiAssistantsApi.create(payload);setToast({msg:"Assistente criado! Webhook configurado automaticamente.",type:"success"});}
       setShowForm(false);resetForm();load();
     }catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}
   };
-
+ 
   const toggle=async(a)=>{try{await aiAssistantsApi.toggle(a.id);setToast({msg:`${a.is_active?"Desativado":"Ativado"}!`,type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}};
-
   const deleteAssistant=async(a)=>{if(!confirm(`Remover "${a.name}"?`))return;try{await aiAssistantsApi.delete(a.id);setToast({msg:"Removido!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}};
-
-  const startEdit=(a)=>{setForm({name:a.name,provider:a.provider,model:a.model,api_key:"",system_prompt:a.system_prompt||"",training_text:a.training_text||"",response_delay:a.response_delay||2,answer_without_question:a.answer_without_question||false,first_response_text:a.first_response_text||"",respond_admins:a.respond_admins||false,scope:a.scope||"private",max_tokens:a.max_tokens||1000,temperature:a.temperature||0.7});setEditId(a.id);setStep(1);setShowForm(true);};
-
-  const viewConversations=async(a)=>{try{const{data}=await aiAssistantsApi.conversations(a.id);setConversations(data.conversations||[]);setViewConvId(a.id);}catch(e){setToast({msg:"Erro ao buscar conversas",type:"error"});}};
-
-  const clearConv=async(id)=>{if(!confirm("Limpar todo o histórico de conversas?"))return;try{await aiAssistantsApi.clearConversations(id);setConversations([]);setToast({msg:"Histórico limpo!",type:"success"});}catch(e){setToast({msg:"Erro",type:"error"});}};
-
+  const startEdit=(a)=>{setForm({name:a.name,provider:a.provider,model:a.model,api_key_id:"",api_key:"",system_prompt:a.system_prompt||"",training_text:a.training_text||"",response_delay:a.response_delay||2,answer_without_question:a.answer_without_question||false,first_response_text:a.first_response_text||"",respond_admins:a.respond_admins||false,scope:a.scope||"private",max_tokens:a.max_tokens||1000,temperature:a.temperature||0.7});setEditId(a.id);setStep(1);setShowForm(true);};
+  const viewConversations=async(a)=>{try{const{data}=await aiAssistantsApi.conversations(a.id);setConversations(data.conversations||[]);setViewConvId(a.id);}catch(e){setToast({msg:"Erro",type:"error"});}};
+  const clearConv=async(id)=>{if(!confirm("Limpar histórico?"))return;try{await aiAssistantsApi.clearConversations(id);setConversations([]);setToast({msg:"Limpo!",type:"success"});}catch(e){setToast({msg:"Erro",type:"error"});}};
+ 
   const providerLabel=(p)=>providers.find(pr=>pr.id===p)?.label||p;
   const scopeLabel=(s)=>({private:"Privado",groups:"Grupos",both:"Ambos"}[s]||s);
-
+ 
   if(loading)return<div style={{padding:"40px",textAlign:"center",color:c.textMut}}><RefreshCw size={24} style={{animation:"spin 1s linear infinite"}}/></div>;
-
+ 
   return(<div style={{padding:"24px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
-
+ 
+    {/* API Keys Section */}
+    <div style={{...card(c),marginBottom:"16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+        <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px"}}><Settings size={16} color={c.accent}/>Chaves de API</h3>
+        <button onClick={()=>setShowKeyForm(!showKeyForm)} style={{...btnP(c,false),padding:"7px 14px",fontSize:"12px"}}><Plus size={13}/>Nova Chave</button>
+      </div>
+ 
+      {showKeyForm&&<div style={{background:c.bgInput,borderRadius:"12px",padding:"16px",marginBottom:"14px",border:`1px solid ${c.border}`}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:"10px",marginBottom:"10px"}}>
+          <div><label style={lbl(c)}>Nome</label><input value={keyForm.name} onChange={e=>setKeyForm({...keyForm,name:e.target.value})} placeholder="Ex: Minha OpenAI" style={inp(c)}/></div>
+          <div><label style={lbl(c)}>Provider</label><select value={keyForm.provider} onChange={e=>setKeyForm({...keyForm,provider:e.target.value})} style={inp(c)}><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></div>
+          <div><label style={lbl(c)}>API Key</label><input value={keyForm.api_key} onChange={e=>setKeyForm({...keyForm,api_key:e.target.value})} placeholder="sk-..." type="password" style={inp(c)}/></div>
+        </div>
+        <div style={{display:"flex",gap:"8px"}}><button onClick={saveKey} disabled={savingKey} style={{...btnP(c,savingKey),padding:"7px 14px",fontSize:"12px"}}>{savingKey?"Salvando...":"Salvar"}</button><button onClick={()=>setShowKeyForm(false)} style={{...btnS(c),padding:"7px 14px",fontSize:"12px"}}>Cancelar</button></div>
+      </div>}
+ 
+      {apiKeys.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"10px 0"}}>Nenhuma chave cadastrada</p>:
+      <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>{apiKeys.map(k=>(
+        <div key={k.id} style={{display:"flex",alignItems:"center",gap:"8px",background:c.bgInput,borderRadius:"10px",padding:"8px 12px",border:`1px solid ${c.border}`}}>
+          <div style={{width:"8px",height:"8px",borderRadius:"50%",background:k.is_active?c.ok:c.danger}}/>
+          <span style={{fontSize:"12px",fontWeight:"600",color:c.text}}>{k.name}</span>
+          <span style={{fontSize:"11px",color:c.textMut,textTransform:"capitalize"}}>{k.provider}</span>
+          <span style={{fontSize:"11px",color:c.textMut,fontFamily:"monospace"}}>{k.api_key_preview}</span>
+          <button onClick={()=>deleteKey(k.id)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"2px"}}><X size={14}/></button>
+        </div>
+      ))}</div>}
+    </div>
+ 
     {/* Header */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}>
       <div/>
       <button onClick={()=>{setShowForm(true);resetForm();}} style={btnP(c,false)}><Plus size={14}/>Novo Assistente</button>
     </div>
-
+ 
     {/* Form - Wizard Steps */}
     {showForm&&<div style={{...card(c),marginBottom:"16px"}}>
-      {/* Progress */}
       <div style={{display:"flex",alignItems:"center",gap:"0",marginBottom:"24px"}}>
         {[{n:1,l:"Escolher IA"},{n:2,l:"Treinamento"},{n:3,l:"Configurar"}].map((s,i)=>(
           <div key={s.n} style={{display:"flex",alignItems:"center",flex:1}}>
-            <div onClick={()=>setStep(s.n)} style={{width:"32px",height:"32px",borderRadius:"50%",background:step>=s.n?c.accent:c.bgInput,color:step>=s.n?"white":c.textMut,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",fontWeight:"700",cursor:"pointer",transition:"all 0.2s"}}>{s.n}</div>
+            <div onClick={()=>setStep(s.n)} style={{width:"32px",height:"32px",borderRadius:"50%",background:step>=s.n?c.accent:c.bgInput,color:step>=s.n?"white":c.textMut,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",fontWeight:"700",cursor:"pointer"}}>{s.n}</div>
             <span style={{fontSize:"12px",color:step>=s.n?c.text:c.textMut,fontWeight:"600",marginLeft:"8px",whiteSpace:"nowrap"}}>{s.l}</span>
-            {i<2&&<div style={{flex:1,height:"2px",background:step>s.n?c.accent:c.border,margin:"0 12px",transition:"all 0.2s"}}/>}
+            {i<2&&<div style={{flex:1,height:"2px",background:step>s.n?c.accent:c.border,margin:"0 12px"}}/>}
           </div>
         ))}
       </div>
-
-      {/* Step 1: Escolher IA */}
+ 
+      {/* Step 1 */}
       {step===1&&<>
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Plataforma</label>
           <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>{providers.map(p=>(
-            <button key={p.id} onClick={()=>setForm({...form,provider:p.id,model:p.models[0]?.id||""})} style={{padding:"10px 18px",borderRadius:"10px",border:`1px solid ${form.provider===p.id?c.accent:c.border}`,background:form.provider===p.id?c.accentSoft:c.bgInput,color:form.provider===p.id?c.accent:c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>{p.label}</button>
+            <button key={p.id} onClick={()=>{setForm({...form,provider:p.id,model:p.models[0]?.id||"",api_key_id:""});}} style={{padding:"10px 18px",borderRadius:"10px",border:`1px solid ${form.provider===p.id?c.accent:c.border}`,background:form.provider===p.id?c.accentSoft:c.bgInput,color:form.provider===p.id?c.accent:c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>{p.label}</button>
           ))}</div>
         </div>
-
+ 
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Modelo</label>
           <select value={form.model} onChange={e=>setForm({...form,model:e.target.value})} style={inp(c)}>
             {currentModels.map(m=><option key={m.id} value={m.id}>{m.label}</option>)}
           </select>
         </div>
-
+ 
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>API Key</label>
-          <input value={form.api_key} onChange={e=>setForm({...form,api_key:e.target.value})} placeholder={form.provider==="openai"?"sk-...":form.provider==="anthropic"?"sk-ant-...":"AIza..."} type="password" style={inp(c)}/>
-          <span style={{fontSize:"11px",color:c.textMut}}>A chave é armazenada de forma segura e nunca é exibida novamente</span>
+          {filteredKeys.length>0?<>
+            <select value={form.api_key_id} onChange={e=>setForm({...form,api_key_id:e.target.value,api_key:""})} style={{...inp(c),marginBottom:"8px"}}>
+              <option value="">Selecione uma chave...</option>
+              {filteredKeys.map(k=><option key={k.id} value={k.id}>{k.name} ({k.api_key_preview})</option>)}
+            </select>
+            {!form.api_key_id&&<div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"8px"}}><div style={{flex:1,height:"1px",background:c.border}}/><span style={{fontSize:"11px",color:c.textMut}}>ou digite uma nova</span><div style={{flex:1,height:"1px",background:c.border}}/></div>}
+            {!form.api_key_id&&<input value={form.api_key} onChange={e=>setForm({...form,api_key:e.target.value})} placeholder={form.provider==="openai"?"sk-...":form.provider==="anthropic"?"sk-ant-...":"AIza..."} type="password" style={inp(c)}/>}
+          </>:<>
+            <input value={form.api_key} onChange={e=>setForm({...form,api_key:e.target.value})} placeholder={form.provider==="openai"?"sk-...":form.provider==="anthropic"?"sk-ant-...":"AIza..."} type="password" style={inp(c)}/>
+            <span style={{fontSize:"11px",color:c.textMut}}>Cadastre chaves na seção acima para reutilizar</span>
+          </>}
         </div>
-
+ 
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Intervalo entre respostas (segundos)</label>
           <input type="range" min="0" max="10" value={form.response_delay} onChange={e=>setForm({...form,response_delay:parseInt(e.target.value)})} style={{width:"100%",accentColor:c.accent}}/>
-          <span style={{fontSize:"12px",color:c.textMut}}>{form.response_delay} segundo{form.response_delay!==1?"s":""} entre cada envio</span>
+          <span style={{fontSize:"12px",color:c.textMut}}>{form.response_delay} segundo{form.response_delay!==1?"s":""}</span>
         </div>
-
+ 
         <div style={{display:"flex",justifyContent:"flex-end",gap:"10px"}}><button onClick={()=>{setShowForm(false);resetForm();}} style={btnS(c)}>Cancelar</button><button onClick={()=>setStep(2)} style={btnP(c,false)}>Próxima →</button></div>
       </>}
-
-      {/* Step 2: Treinamento */}
+ 
+      {/* Step 2 */}
       {step===2&&<>
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Instruções de Comportamento</label>
-          <textarea value={form.system_prompt} onChange={e=>setForm({...form,system_prompt:e.target.value})} rows={5} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Ex: Você é um agente de suporte. Responda com base nas informações fornecidas..."/>
-          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"11px",color:c.textMut}}>Define como a IA deve se comportar</span><span style={{fontSize:"11px",color:form.system_prompt.length>900?c.danger:c.textMut}}>{form.system_prompt.length}/1000</span></div>
+          <textarea value={form.system_prompt} onChange={e=>setForm({...form,system_prompt:e.target.value})} rows={5} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Ex: Você é um agente de suporte..."/>
+          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"11px",color:c.textMut}}>Define como a IA se comporta</span><span style={{fontSize:"11px",color:form.system_prompt.length>900?c.danger:c.textMut}}>{form.system_prompt.length}/1000</span></div>
         </div>
-
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Texto de Treinamento (Base de Conhecimento)</label>
-          <textarea value={form.training_text} onChange={e=>setForm({...form,training_text:e.target.value})} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Cole aqui informações sobre seu produto, FAQ, regras de atendimento, etc. A IA vai usar esse texto como referência."/>
+          <textarea value={form.training_text} onChange={e=>setForm({...form,training_text:e.target.value})} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Cole informações sobre seu produto, FAQ, etc."/>
           <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"11px",color:c.textMut}}>Limite: 20.000 caracteres</span><span style={{fontSize:"11px",color:form.training_text.length>19000?c.danger:c.textMut}}>{form.training_text.length}/20000</span></div>
         </div>
-
         <div style={{display:"flex",justifyContent:"space-between",gap:"10px"}}><button onClick={()=>setStep(1)} style={btnS(c)}>← Voltar</button><button onClick={()=>setStep(3)} style={btnP(c,false)}>Próxima →</button></div>
       </>}
-
-      {/* Step 3: Configurar */}
+ 
+      {/* Step 3 */}
       {step===3&&<>
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome do Assistente</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Suporte ao Cliente" style={inp(c)}/></div>
-
-        <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Primeira resposta fixa (sem IA - opcional)</label>
-          <textarea value={form.first_response_text} onChange={e=>setForm({...form,first_response_text:e.target.value})} rows={3} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Ex: Olá! Sou o assistente virtual da empresa X. Como posso ajudar?"/>
-          <span style={{fontSize:"11px",color:c.textMut}}>Enviada antes da IA responder, apenas na primeira mensagem</span>
+        <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Primeira resposta fixa (opcional)</label>
+          <textarea value={form.first_response_text} onChange={e=>setForm({...form,first_response_text:e.target.value})} rows={3} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Ex: Olá! Sou o assistente virtual..."/>
+          <span style={{fontSize:"11px",color:c.textMut}}>Enviada antes da IA, apenas na primeira mensagem</span>
         </div>
-
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"16px"}}>
-          <div><label style={lbl(c)}>Responder mensagens sem "?"</label>
-            <div style={{display:"flex",gap:"12px"}}><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="question" checked={form.answer_without_question} onChange={()=>setForm({...form,answer_without_question:true})} style={{accentColor:c.accent}}/>Sim</label><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="question" checked={!form.answer_without_question} onChange={()=>setForm({...form,answer_without_question:false})} style={{accentColor:c.accent}}/>Não</label></div>
-          </div>
-
-          <div><label style={lbl(c)}>Responder administradores</label>
-            <div style={{display:"flex",gap:"12px"}}><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="admins" checked={form.respond_admins} onChange={()=>setForm({...form,respond_admins:true})} style={{accentColor:c.accent}}/>Sim</label><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="admins" checked={!form.respond_admins} onChange={()=>setForm({...form,respond_admins:false})} style={{accentColor:c.accent}}/>Não</label></div>
-          </div>
+          <div><label style={lbl(c)}>Responder sem "?"</label><div style={{display:"flex",gap:"12px"}}><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="question" checked={form.answer_without_question} onChange={()=>setForm({...form,answer_without_question:true})} style={{accentColor:c.accent}}/>Sim</label><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="question" checked={!form.answer_without_question} onChange={()=>setForm({...form,answer_without_question:false})} style={{accentColor:c.accent}}/>Não</label></div></div>
+          <div><label style={lbl(c)}>Responder admins</label><div style={{display:"flex",gap:"12px"}}><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="admins" checked={form.respond_admins} onChange={()=>setForm({...form,respond_admins:true})} style={{accentColor:c.accent}}/>Sim</label><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="admins" checked={!form.respond_admins} onChange={()=>setForm({...form,respond_admins:false})} style={{accentColor:c.accent}}/>Não</label></div></div>
         </div>
-
-        <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Tipo</label>
-          <div style={{display:"flex",gap:"8px"}}>{[{id:"private",l:"Privado"},{id:"groups",l:"Grupos"},{id:"both",l:"Ambos"}].map(s=>(
-            <button key={s.id} onClick={()=>setForm({...form,scope:s.id})} style={{padding:"8px 18px",borderRadius:"10px",border:`1px solid ${form.scope===s.id?c.accent:c.border}`,background:form.scope===s.id?c.accentSoft:c.bgInput,color:form.scope===s.id?c.accent:c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>{s.l}</button>
-          ))}</div>
-        </div>
-
+        <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Tipo</label><div style={{display:"flex",gap:"8px"}}>{[{id:"private",l:"Privado"},{id:"groups",l:"Grupos"},{id:"both",l:"Ambos"}].map(s=>(<button key={s.id} onClick={()=>setForm({...form,scope:s.id})} style={{padding:"8px 18px",borderRadius:"10px",border:`1px solid ${form.scope===s.id?c.accent:c.border}`,background:form.scope===s.id?c.accentSoft:c.bgInput,color:form.scope===s.id?c.accent:c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>{s.l}</button>))}</div></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"20px"}}>
           <div><label style={lbl(c)}>Max Tokens</label><input type="number" value={form.max_tokens} onChange={e=>setForm({...form,max_tokens:parseInt(e.target.value)||1000})} style={inp(c)}/></div>
           <div><label style={lbl(c)}>Temperatura ({form.temperature})</label><input type="range" min="0" max="1" step="0.1" value={form.temperature} onChange={e=>setForm({...form,temperature:parseFloat(e.target.value)})} style={{width:"100%",accentColor:c.accent,marginTop:"10px"}}/><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"10px",color:c.textMut}}>Preciso</span><span style={{fontSize:"10px",color:c.textMut}}>Criativo</span></div></div>
         </div>
-
         <div style={{display:"flex",justifyContent:"space-between",gap:"10px"}}><button onClick={()=>setStep(2)} style={btnS(c)}>← Voltar</button><button onClick={save} style={btnP(c,false)}><CheckCircle size={14}/>{editId?"Salvar":"Criar Assistente"}</button></div>
       </>}
     </div>}
-
-    {/* Conversations Modal */}
+ 
+    {/* Conversations */}
     {viewConvId&&<div style={{...card(c),marginBottom:"16px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
-        <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text}}>Conversas do Assistente</h3>
-        <div style={{display:"flex",gap:"8px"}}><button onClick={()=>clearConv(viewConvId)} style={{...btnS(c),padding:"6px 12px",fontSize:"11px",color:c.danger}}>Limpar Tudo</button><button onClick={()=>{setViewConvId(null);setConversations([]);}} style={{...btnS(c),padding:"6px 12px",fontSize:"11px"}}>Fechar</button></div>
+        <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text}}>Conversas</h3>
+        <div style={{display:"flex",gap:"8px"}}><button onClick={()=>clearConv(viewConvId)} style={{...btnS(c),padding:"6px 12px",fontSize:"11px",color:c.danger}}>Limpar</button><button onClick={()=>{setViewConvId(null);setConversations([]);}} style={{...btnS(c),padding:"6px 12px",fontSize:"11px"}}>Fechar</button></div>
       </div>
-      {conversations.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"20px"}}>Nenhuma conversa registrada</p>:
+      {conversations.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"20px"}}>Nenhuma conversa</p>:
       conversations.map(conv=><div key={conv.id} style={{background:c.bgInput,borderRadius:"12px",padding:"14px",marginBottom:"10px",border:`1px solid ${c.border}`}}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:"8px"}}><span style={{fontSize:"12px",fontWeight:"600",color:c.text,fontFamily:"monospace"}}>{conv.remote_jid.replace("@s.whatsapp.net","")}</span><span style={{fontSize:"11px",color:c.textMut}}>{conv.last_message_at?new Date(conv.last_message_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</span></div>
         <div style={{maxHeight:"200px",overflowY:"auto"}}>{(Array.isArray(conv.messages)?conv.messages:[]).slice(-6).map((m,i)=>(
@@ -1043,31 +1089,28 @@ function AIAssistantPage(){
         ))}</div>
       </div>)}
     </div>}
-
+ 
     {/* List */}
     <div style={card(c)}>
       <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Seus Assistentes IA</h3>
-      {assistants.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhum assistente criado. Clique em "Novo Assistente".</p>:
+      {assistants.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhum assistente criado.</p>:
       <div>{assistants.map(a=>(
-        <div key={a.id} style={{background:c.bgInput,borderRadius:"14px",padding:"18px",marginBottom:"10px",border:`1px solid ${a.is_active?c.accent+"33":c.border}`,transition:"all 0.2s"}}>
+        <div key={a.id} style={{background:c.bgInput,borderRadius:"14px",padding:"18px",marginBottom:"10px",border:`1px solid ${a.is_active?c.accent+"33":c.border}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div style={{display:"flex",gap:"12px",alignItems:"center"}}>
               <div style={{width:"44px",height:"44px",borderRadius:"12px",background:a.is_active?c.accentSoft:c.bgCard,display:"flex",alignItems:"center",justifyContent:"center"}}><Zap size={20} color={a.is_active?c.accent:c.textMut}/></div>
-              <div>
-                <div style={{fontSize:"15px",fontWeight:"700",color:c.text}}>{a.name}</div>
-                <div style={{fontSize:"12px",color:c.textMut,marginTop:"2px"}}>{providerLabel(a.provider)} • {a.model} • {scopeLabel(a.scope)}</div>
-              </div>
+              <div><div style={{fontSize:"15px",fontWeight:"700",color:c.text}}>{a.name}</div><div style={{fontSize:"12px",color:c.textMut,marginTop:"2px"}}>{providerLabel(a.provider)} • {a.model} • {scopeLabel(a.scope)}</div></div>
             </div>
             <div style={{display:"flex",gap:"6px",alignItems:"center"}}>
               <button onClick={()=>toggle(a)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:"4px",color:a.is_active?c.ok:c.danger,fontSize:"12px",fontWeight:"600"}}>{a.is_active?<ToggleRight size={20}/>:<ToggleLeft size={20}/>}</button>
-              <button onClick={()=>viewConversations(a)} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"4px"}} title="Ver conversas"><Eye size={16}/></button>
+              <button onClick={()=>viewConversations(a)} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"4px"}} title="Conversas"><Eye size={16}/></button>
               <button onClick={()=>startEdit(a)} style={{background:"none",border:"none",cursor:"pointer",color:c.textSec,padding:"4px"}} title="Editar"><Edit size={16}/></button>
               <button onClick={()=>deleteAssistant(a)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"4px"}} title="Remover"><Trash2 size={16}/></button>
             </div>
           </div>
           <div style={{display:"flex",gap:"20px",marginTop:"12px",paddingTop:"12px",borderTop:`1px solid ${c.border}`}}>
             <div><span style={{fontSize:"11px",color:c.textMut}}>Mensagens</span><div style={{fontSize:"16px",fontWeight:"700",color:c.text}}>{a.total_messages||0}</div></div>
-            <div><span style={{fontSize:"11px",color:c.textMut}}>Tokens usados</span><div style={{fontSize:"16px",fontWeight:"700",color:c.text}}>{(a.total_tokens_used||0).toLocaleString("pt-BR")}</div></div>
+            <div><span style={{fontSize:"11px",color:c.textMut}}>Tokens</span><div style={{fontSize:"16px",fontWeight:"700",color:c.text}}>{(a.total_tokens_used||0).toLocaleString("pt-BR")}</div></div>
             <div><span style={{fontSize:"11px",color:c.textMut}}>Delay</span><div style={{fontSize:"16px",fontWeight:"700",color:c.text}}>{a.response_delay||0}s</div></div>
             <div><span style={{fontSize:"11px",color:c.textMut}}>Status</span><div style={{fontSize:"13px",fontWeight:"600",color:a.is_active?c.ok:c.danger}}>{a.is_active?"Ativo":"Inativo"}</div></div>
           </div>
