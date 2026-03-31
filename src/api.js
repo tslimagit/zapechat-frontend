@@ -132,6 +132,17 @@ export const aiAssistantsApi = {
   clearConversations: (id) => api.delete(`/ai-assistants/${id}/conversations`),
 };
 
+// ==========================================
+// ADICIONAR NO api.js - após aiAssistantsApi:
+// ==========================================
+ 
+export const apiKeysApi = {
+  list: () => api.get('/api-keys'),
+  create: (data) => api.post('/api-keys', data),
+  update: (id, data) => api.put(`/api-keys/${id}`, data),
+  delete: (id) => api.delete(`/api-keys/${id}`),
+};
+
 export const uploadApi = {
   upload: (data) => api.post('/upload', data),
 };
