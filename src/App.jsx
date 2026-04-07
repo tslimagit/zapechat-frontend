@@ -5,7 +5,7 @@ import {
   RefreshCw, Play, Pause, Hash, Globe, Phone, Image, FileText, Video, Mic, Calendar,
   Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight
 } from "lucide-react";
-import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi } from "./api";
+import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi } from "./api";
 
 // ==================== THEME ====================
 const ThemeContext = createContext();
@@ -1037,16 +1037,30 @@ function AIAssistantPage(){
         <div style={{display:"flex",justifyContent:"flex-end",gap:"10px"}}><button onClick={()=>{setShowForm(false);resetForm();}} style={btnS(c)}>Cancelar</button><button onClick={()=>setStep(2)} style={btnP(c,false)}>Próxima →</button></div>
       </>}
  
-      {/* Step 2 */}
+      {/* Step 2 - Treinamento */}
       {step===2&&<>
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Instruções de Comportamento</label>
           <textarea value={form.system_prompt} onChange={e=>setForm({...form,system_prompt:e.target.value})} rows={5} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Ex: Você é um agente de suporte..."/>
-          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"11px",color:c.textMut}}>Define como a IA se comporta</span><span style={{fontSize:"11px",color:form.system_prompt.length>900?c.danger:c.textMut}}>{form.system_prompt.length}/3000</span></div>
+          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"11px",color:c.textMut}}>Define como a IA se comporta</span><span style={{fontSize:"11px",color:form.system_prompt.length>2800?c.danger:c.textMut}}>{form.system_prompt.length}/3000</span></div>
         </div>
-        <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Texto de Treinamento (Base de Conhecimento)</label>
-          <textarea value={form.training_text} onChange={e=>setForm({...form,training_text:e.target.value})} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Cole informações sobre seu produto, FAQ, etc."/>
-          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"11px",color:c.textMut}}>Limite: 20.000 caracteres</span><span style={{fontSize:"11px",color:form.training_text.length>19000?c.danger:c.textMut}}>{form.training_text.length}/20000</span></div>
+ 
+        {/* Fontes de Treinamento */}
+        <div style={{marginBottom:"16px"}}>
+          <label style={lbl(c)}>Adicionar Fontes de Conhecimento</label>
+          <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"12px"}}>
+            <button type="button" onClick={()=>{const i=document.createElement('input');i.type='file';i.accept='.pdf';i.onchange=async(e)=>{const f=e.target.files[0];if(!f)return;setToast({msg:"Extraindo texto do PDF...",type:"success"});try{const r=new FileReader();r.onload=async()=>{try{const{data}=await trainingSourcesApi.extractPdf({file:r.result,fileName:f.name});setForm(prev=>({...prev,training_text:(prev.training_text?prev.training_text+'\n\n--- Fonte: '+f.name+' ---\n\n':'')+data.text}));setToast({msg:`PDF extraído! ${data.pages} páginas, ${data.chars} caracteres`,type:"success"});}catch(err){setToast({msg:err.response?.data?.error||"Erro ao extrair PDF",type:"error"});}};r.readAsDataURL(f);}catch(err){setToast({msg:"Erro ao ler arquivo",type:"error"});}};i.click();}} style={{padding:"8px 14px",borderRadius:"10px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=c.accent;e.currentTarget.style.color=c.accent}} onMouseLeave={e=>{e.currentTarget.style.borderColor=c.border;e.currentTarget.style.color=c.textSec}}>📄 PDF</button>
+ 
+            <button type="button" onClick={()=>{const url=prompt("Cole a URL do site:");if(!url)return;setToast({msg:"Extraindo conteúdo do site...",type:"success"});trainingSourcesApi.extractUrl({url}).then(({data})=>{setForm(prev=>({...prev,training_text:(prev.training_text?prev.training_text+'\n\n--- Fonte: '+data.title+' ---\n\n':'')+data.text}));setToast({msg:`Site extraído! ${data.chars} caracteres`,type:"success"});}).catch(err=>{setToast({msg:err.response?.data?.error||"Erro ao extrair site",type:"error"});});}} style={{padding:"8px 14px",borderRadius:"10px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=c.accent;e.currentTarget.style.color=c.accent}} onMouseLeave={e=>{e.currentTarget.style.borderColor=c.border;e.currentTarget.style.color=c.textSec}}>🌐 Site / URL</button>
+ 
+            <button type="button" onClick={()=>{const url=prompt("Cole a URL do vídeo do YouTube:");if(!url)return;setToast({msg:"Extraindo transcrição do YouTube...",type:"success"});trainingSourcesApi.extractYoutube({url}).then(({data})=>{setForm(prev=>({...prev,training_text:(prev.training_text?prev.training_text+'\n\n--- Fonte: YouTube ('+data.videoId+') ---\n\n':'')+data.text}));setToast({msg:`YouTube extraído! ${data.duration}, ${data.chars} caracteres`,type:"success"});}).catch(err=>{setToast({msg:err.response?.data?.error||"Erro ao extrair YouTube",type:"error"});});}} style={{padding:"8px 14px",borderRadius:"10px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=c.accent;e.currentTarget.style.color=c.accent}} onMouseLeave={e=>{e.currentTarget.style.borderColor=c.border;e.currentTarget.style.color=c.textSec}}>🎬 YouTube</button>
+          </div>
         </div>
+ 
+        <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Base de Conhecimento</label>
+          <textarea value={form.training_text} onChange={e=>setForm({...form,training_text:e.target.value})} rows={8} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Cole informações sobre seu produto, FAQ, etc. Ou use os botões acima para importar de PDFs, sites e YouTube."/>
+          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"11px",color:c.textMut}}>Limite: 20.000 caracteres • Use os botões acima para importar fontes</span><span style={{fontSize:"11px",color:form.training_text.length>19000?c.danger:c.textMut}}>{form.training_text.length}/20000</span></div>
+        </div>
+ 
         <div style={{display:"flex",justifyContent:"space-between",gap:"10px"}}><button onClick={()=>setStep(1)} style={btnS(c)}>← Voltar</button><button onClick={()=>setStep(3)} style={btnP(c,false)}>Próxima →</button></div>
       </>}
  
