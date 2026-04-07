@@ -143,6 +143,12 @@ export const apiKeysApi = {
   delete: (id) => api.delete(`/api-keys/${id}`),
 };
 
+export const trainingSourcesApi = {
+  extractPdf: (data) => api.post('/training-sources/pdf', data),
+  extractUrl: (data) => api.post('/training-sources/url', data),
+  extractYoutube: (data) => api.post('/training-sources/youtube', data),
+};
+
 export const uploadApi = {
   upload: (data) => api.post('/upload', data),
 };
