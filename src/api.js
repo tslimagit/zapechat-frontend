@@ -80,6 +80,15 @@ export const groupsApi = {
   leave: (jid) => api.delete(`/groups/${jid}/leave`),
 };
 
+export const groupEventsApi = {
+  list: (params = {}) => api.get('/group-events', { params }),
+  groups: () => api.get('/group-events/groups'),
+  export: (params = {}) => api.get('/group-events/export', { params }),
+  clear: () => api.delete('/group-events'),
+  getWebhookConfig: () => api.get('/group-events/webhook-config'),
+  saveWebhookConfig: (data) => api.put('/group-events/webhook-config', data),
+};
+
 export const contactsApi = {
   list: (params = {}) => api.get('/contacts', { params }),
   create: (data) => api.post('/contacts', data),
