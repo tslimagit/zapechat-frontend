@@ -5,7 +5,7 @@ import {
   RefreshCw, Play, Pause, Hash, Globe, Phone, Image, FileText, Video, Mic, Calendar,
   Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight
 } from "lucide-react";
-import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi } from "./api";
+import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi } from "./api";
 
 // ==================== THEME ====================
 const ThemeContext = createContext();
@@ -494,7 +494,7 @@ function AdminPage(){
 function Sidebar({active,onNavigate,collapsed,user}){
   const{dark,toggle}=useTheme();const c=C(dark);
   const isAdmin=user?.role==="admin";
-  const nav=[{id:"dashboard",icon:BarChart3,label:"Dashboard"},{id:"qrcode",icon:QrCode,label:"WhatsApp"},{id:"send",icon:Send,label:"Enviar Mensagem"},{id:"mass",icon:Mail,label:"Disparo em Massa"},{id:"groups",icon:Users,label:"Grupos"},{id:"reports",icon:PieChart,label:"Relatórios"},{id:"contacts",icon:Phone,label:"Contatos"},...(isAdmin?[{id:"admin",icon:Shield,label:"Admin"}]:[]),{id:"ai",icon:Zap,label:"Assistente IA"},,{id:"automations",icon:Zap,label:"Automações"},{id:"settings",icon:Settings,label:"Configurações"}];
+  const nav=[{id:"dashboard",icon:BarChart3,label:"Dashboard"},{id:"qrcode",icon:QrCode,label:"WhatsApp"},{id:"send",icon:Send,label:"Enviar Mensagem"},{id:"mass",icon:Mail,label:"Disparo em Massa"},{id:"groups",icon:Users,label:"Grupos"},{id:"reports",icon:PieChart,label:"Relatórios"},{id:"contacts",icon:Phone,label:"Contatos"},...(isAdmin?[{id:"admin",icon:Shield,label:"Admin"}]:[]),{id:"ai",icon:Zap,label:"Assistente IA"},{id:"group-events",icon:Users,label:"Monitor Grupos"},{id:"automations",icon:Zap,label:"Automações"},{id:"settings",icon:Settings,label:"Configurações"}];
   const navBtn=(id,Icon,label,isActive,color)=>(<button key={id} onClick={()=>onNavigate(id)} style={{width:"100%",padding:collapsed?"12px 0":"11px 14px",display:"flex",alignItems:"center",justifyContent:collapsed?"center":"flex-start",gap:"12px",background:isActive?c.accentSoft:"transparent",border:"none",borderRadius:"10px",cursor:"pointer",color:color||(isActive?c.accent:c.textSec),fontSize:"13px",fontWeight:isActive?"600":"500",marginBottom:"2px",position:"relative",transition:"all 0.15s"}} onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background=c.bgCardHover;}} onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background="transparent";}}>
     {isActive&&!collapsed&&<div style={{position:"absolute",left:0,top:"50%",transform:"translateY(-50%)",width:"3px",height:"20px",borderRadius:"4px",background:c.accent}}/>}<Icon size={19}/>{!collapsed&&label}</button>);
   return(<div style={{width:collapsed?"68px":"250px",minHeight:"100vh",background:c.bgSidebar,borderRight:`1px solid ${c.border}`,display:"flex",flexDirection:"column",transition:"width 0.3s",flexShrink:0}}>
@@ -867,6 +867,137 @@ function ContactsPage(){const{dark}=useTheme();const c=C(dark);const[contacts,se
 function SettingsPage({user,onProfileUpdate}){const{dark}=useTheme();const c=C(dark);const[name,setName]=useState(user?.name||"");const[company,setCompany]=useState(user?.company||"");const[phone,setPhone]=useState(user?.phone||"");const[saving,setSaving]=useState(false);const[toast,setToast]=useState(null);const save=async()=>{setSaving(true);try{const{data}=await authApi.updateProfile({name,company,phone});setToast({msg:"Perfil atualizado!",type:"success"});if(onProfileUpdate)onProfileUpdate(data.user);}catch(e){setToast({msg:"Erro",type:"error"});}finally{setSaving(false);}};return(<div style={{padding:"24px",maxWidth:"700px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}<div style={card(c)}><div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}}><Settings size={20} color={c.accent}/><h3 style={{margin:0,fontSize:"18px",fontWeight:"700",color:c.text}}>Meu Perfil</h3></div><p style={{margin:"0 0 22px",fontSize:"13px",color:c.textMut}}>Edite suas informações</p><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome</label><input value={name} onChange={e=>setName(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Empresa</label><input value={company} onChange={e=>setCompany(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Telefone</label><input value={phone} onChange={e=>setPhone(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Instância WhatsApp</label><div style={{padding:"12px 16px",background:c.bgInput,borderRadius:"12px",color:c.textSec,fontSize:"14px",border:`1px solid ${c.border}`}}>{user?.evolution_instance||"Não configurada"}</div></div><button onClick={save} disabled={saving} style={btnP(c,saving)}>{saving?"Salvando...":"Salvar"}</button></div></div>);}
 
 // ==========================================
+// NOVA GroupEventsPage - Adicionar no App.jsx
+// Importar groupEventsApi no topo
+// Sidebar: {id:"group-events",icon:Users,label:"Monitor Grupos"} (antes de automations)
+// MainContent: {page==="group-events"&&<GroupEventsPage/>}
+// Titles: "group-events":["Monitor de Grupos","Entrada e saída"]
+// ==========================================
+ 
+function GroupEventsPage(){
+  const{dark}=useTheme();const c=C(dark);
+  const[events,setEvents]=useState([]);const[stats,setStats]=useState({});const[groupStats,setGroupStats]=useState([]);
+  const[loading,setLoading]=useState(true);const[toast,setToast]=useState(null);
+  const[tab,setTab]=useState("events");
+  const[filterGroup,setFilterGroup]=useState("");const[filterAction,setFilterAction]=useState("");
+  const[n8nUrl,setN8nUrl]=useState("");const[savingConfig,setSavingConfig]=useState(false);
+ 
+  const load=async()=>{
+    try{
+      const[evRes,grRes,cfRes]=await Promise.all([
+        groupEventsApi.list({group_jid:filterGroup||undefined,action:filterAction||undefined,limit:100}),
+        groupEventsApi.groups(),
+        groupEventsApi.getWebhookConfig(),
+      ]);
+      setEvents(evRes.data.events||[]);setStats(evRes.data.stats||{});
+      setGroupStats(grRes.data.groups||[]);setN8nUrl(cfRes.data.n8n_webhook_url||"");
+    }catch(e){}finally{setLoading(false);}
+  };
+  useEffect(()=>{load();},[filterGroup,filterAction]);
+ 
+  const saveConfig=async()=>{
+    setSavingConfig(true);
+    try{await groupEventsApi.saveWebhookConfig({n8n_webhook_url:n8nUrl});setToast({msg:"Configuração salva!",type:"success"});}
+    catch(e){setToast({msg:"Erro ao salvar",type:"error"});}finally{setSavingConfig(false);}
+  };
+ 
+  const clearEvents=async()=>{
+    if(!confirm("Limpar todo o histórico de eventos?"))return;
+    try{await groupEventsApi.clear();setToast({msg:"Histórico limpo!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  const exportEvents=async()=>{
+    try{
+      const{data}=await groupEventsApi.export({group_jid:filterGroup||undefined,action:filterAction||undefined});
+      const blob=new Blob([JSON.stringify(data.events,null,2)],{type:'application/json'});
+      const url=window.URL.createObjectURL(blob);const a=document.createElement('a');
+      a.href=url;a.download=`group-events-${new Date().toISOString().split('T')[0]}.json`;a.click();
+      setToast({msg:`${data.total} eventos exportados!`,type:"success"});
+    }catch(e){setToast({msg:"Erro ao exportar",type:"error"});}
+  };
+ 
+  const actionLabel=(a)=>({add:"Entrou",remove:"Saiu",join:"Entrou",leave:"Saiu"}[a]||a);
+  const actionColor=(a)=>(a==="add"||a==="join")?c.ok:c.danger;
+ 
+  if(loading)return<div style={{padding:"40px",textAlign:"center",color:c.textMut}}><RefreshCw size={24} style={{animation:"spin 1s linear infinite"}}/></div>;
+ 
+  return(<div style={{padding:"24px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
+ 
+    {/* Stats */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"14px",marginBottom:"20px"}}>
+      <StatCard icon={Users} label="Entradas" value={parseInt(stats.total_joined)||0} color={c.ok} colorSoft={c.okSoft}/>
+      <StatCard icon={LogOut} label="Saídas" value={parseInt(stats.total_left)||0} color={c.danger} colorSoft={c.dangerSoft}/>
+      <StatCard icon={BarChart3} label="Total de Eventos" value={parseInt(stats.total_events)||0} color={c.info} colorSoft={c.infoSoft}/>
+    </div>
+ 
+    {/* Config n8n */}
+    <div style={{...card(c),marginBottom:"16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
+        <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px"}}><Globe size={16} color={c.accent}/>Webhook n8n (opcional)</h3>
+      </div>
+      <div style={{display:"flex",gap:"8px"}}>
+        <input value={n8nUrl} onChange={e=>setN8nUrl(e.target.value)} placeholder="https://seu-n8n.com/webhook/grupo-eventos" style={{...inp(c),flex:1,fontSize:"13px"}}/>
+        <button onClick={saveConfig} disabled={savingConfig} style={{...btnP(c,savingConfig),padding:"10px 18px",fontSize:"12px"}}>{savingConfig?"...":"Salvar"}</button>
+      </div>
+      <span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>Eventos de entrada/saída serão encaminhados automaticamente pra esta URL</span>
+    </div>
+ 
+    {/* Tabs + Filters */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px",flexWrap:"wrap",gap:"10px"}}>
+      <div style={{display:"flex",gap:"8px"}}>
+        <button onClick={()=>setTab("events")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="events"?c.accent:c.bgInput,color:tab==="events"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Eventos</button>
+        <button onClick={()=>setTab("groups")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="groups"?c.accent:c.bgInput,color:tab==="groups"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Por Grupo</button>
+      </div>
+      <div style={{display:"flex",gap:"8px"}}>
+        <select value={filterAction} onChange={e=>{setFilterAction(e.target.value);setLoading(true);}} style={{...inp(c),padding:"8px 12px",fontSize:"12px",width:"auto"}}>
+          <option value="">Todos</option>
+          <option value="add">Entradas</option>
+          <option value="remove">Saídas</option>
+        </select>
+        <button onClick={exportEvents} style={{...btnS(c),padding:"8px 14px",fontSize:"12px"}}><Download size={13}/>Exportar</button>
+        <button onClick={clearEvents} style={{...btnS(c),padding:"8px 14px",fontSize:"12px",color:c.danger}}>Limpar</button>
+        <button onClick={()=>{setLoading(true);load();}} style={{...btnS(c),padding:"8px 14px",fontSize:"12px"}}><RefreshCw size={13}/>Atualizar</button>
+      </div>
+    </div>
+ 
+    {/* Events Tab */}
+    {tab==="events"&&<div style={card(c)}>
+      <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico de Eventos</h3>
+      {events.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhum evento registrado ainda. Os eventos aparecerão quando alguém entrar ou sair de um grupo.</p>:
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
+        {["Data","Grupo","Participante","Ação"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
+      </tr></thead><tbody>
+        {events.map(ev=><tr key={ev.id} onMouseEnter={e=>e.currentTarget.style.background=c.bgCardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <td style={{padding:"10px 12px",fontSize:"12px",color:c.textMut}}>{ev.timestamp?new Date(ev.timestamp).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</td>
+          <td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{ev.group_name||ev.group_jid?.replace("@g.us","")}</td>
+          <td style={{padding:"10px 12px",fontSize:"12px",color:c.textSec,fontFamily:"monospace"}}>{ev.participant_jid?.replace("@s.whatsapp.net","")}</td>
+          <td style={{padding:"10px 12px"}}><span style={{fontSize:"11px",fontWeight:"700",padding:"3px 10px",borderRadius:"6px",background:(ev.action==="add"||ev.action==="join")?c.okSoft:c.dangerSoft,color:actionColor(ev.action)}}>{actionLabel(ev.action)}</span></td>
+        </tr>)}
+      </tbody></table></div>}
+    </div>}
+ 
+    {/* Groups Tab */}
+    {tab==="groups"&&<div style={card(c)}>
+      <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Eventos por Grupo</h3>
+      {groupStats.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhum evento registrado.</p>:
+      <div>{groupStats.map(g=>(
+        <div key={g.group_jid} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px",borderRadius:"12px",marginBottom:"8px",background:c.bgInput,border:`1px solid ${c.border}`,cursor:"pointer"}} onClick={()=>{setFilterGroup(g.group_jid);setTab("events");setLoading(true);}} onMouseEnter={e=>e.currentTarget.style.borderColor=c.accent+"44"} onMouseLeave={e=>e.currentTarget.style.borderColor=c.border}>
+          <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+            <div style={{width:"40px",height:"40px",borderRadius:"10px",background:c.violetGlow,display:"flex",alignItems:"center",justifyContent:"center"}}><Hash size={16} color={c.violet}/></div>
+            <div><div style={{fontSize:"14px",fontWeight:"700",color:c.text}}>{g.group_name||g.group_jid?.replace("@g.us","")}</div><div style={{fontSize:"11px",color:c.textMut}}>Último evento: {g.last_event?new Date(g.last_event).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</div></div>
+          </div>
+          <div style={{display:"flex",gap:"16px",alignItems:"center"}}>
+            <div style={{textAlign:"center"}}><div style={{fontSize:"16px",fontWeight:"700",color:c.ok}}>{g.joined||0}</div><div style={{fontSize:"10px",color:c.textMut}}>Entradas</div></div>
+            <div style={{textAlign:"center"}}><div style={{fontSize:"16px",fontWeight:"700",color:c.danger}}>{g.left_count||0}</div><div style={{fontSize:"10px",color:c.textMut}}>Saídas</div></div>
+          </div>
+        </div>
+      ))}</div>}
+      {filterGroup&&<button onClick={()=>{setFilterGroup("");setLoading(true);}} style={{...btnS(c),marginTop:"10px",fontSize:"12px"}}>Limpar filtro</button>}
+    </div>}
+  </div>);
+}
+
+// ==========================================
 // NOVA AIAssistantPage COMPLETA v2
 // Substitua a função AIAssistantPage inteira no App.jsx
 // Não esqueça de importar apiKeysApi no import do topo
@@ -1137,10 +1268,10 @@ function AIAssistantPage(){
 // ==================== MAIN ====================
 function MainContent({page,user,onToggleSidebar,onProfileUpdate}){
   const{dark}=useTheme();const c=C(dark);
-  const titles={dashboard:["Dashboard","Visão geral"],qrcode:["WhatsApp","Conecte seu WhatsApp"],send:["Enviar Mensagem","Texto e mídia"],mass:["Disparo em Massa","Campanhas"],groups:["Grupos","Gerencie grupos"],reports:["Relatórios","Análises"],contacts:["Contatos","Sua lista"],admin:["Admin","Gerenciar clientes"],ai:["Assistente IA","Resposta automática com IA"],automations:["Automações","Webhooks de pagamento"],settings:["Configurações","Seu perfil"]};
+  const titles={dashboard:["Dashboard","Visão geral"],qrcode:["WhatsApp","Conecte seu WhatsApp"],send:["Enviar Mensagem","Texto e mídia"],mass:["Disparo em Massa","Campanhas"],groups:["Grupos","Gerencie grupos"],"group-events":["Monitor de Grupos","Entrada e saída"],reports:["Relatórios","Análises"],contacts:["Contatos","Sua lista"],admin:["Admin","Gerenciar clientes"],ai:["Assistente IA","Resposta automática com IA"],automations:["Automações","Webhooks de pagamento"],settings:["Configurações","Seu perfil"]};
   return(<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}><div style={{flex:1,background:c.bg,minHeight:"100vh"}}>
     <Header title={titles[page]?.[0]||""} subtitle={titles[page]?.[1]||""} user={user} onToggleSidebar={onToggleSidebar}/>
-    {page==="dashboard"&&<DashboardPage/>}{page==="qrcode"&&<QrCodePage/>}{page==="send"&&<SendMessagePage/>}{page==="mass"&&<MassSendPage/>}{page==="groups"&&<GroupsPage/>}{page==="reports"&&<ReportsPage/>}{page==="contacts"&&<ContactsPage/>}{page==="admin"&&<AdminPage/>}{page==="ai"&&<AIAssistantPage/>}{page==="automations"&&<AutomationsPage/>}{page==="settings"&&<SettingsPage user={user} onProfileUpdate={onProfileUpdate}/>}
+    {page==="dashboard"&&<DashboardPage/>}{page==="qrcode"&&<QrCodePage/>}{page==="send"&&<SendMessagePage/>}{page==="mass"&&<MassSendPage/>}{page==="groups"&&<GroupsPage/>}{page==="group-events"&&<GroupEventsPage/>}{page==="reports"&&<ReportsPage/>}{page==="contacts"&&<ContactsPage/>}{page==="admin"&&<AdminPage/>}{page==="ai"&&<AIAssistantPage/>}{page==="automations"&&<AutomationsPage/>}{page==="settings"&&<SettingsPage user={user} onProfileUpdate={onProfileUpdate}/>}
   </div></div>);
 }
 
