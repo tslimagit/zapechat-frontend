@@ -1637,7 +1637,8 @@ function AIAssistantPage(){
         </div>
         <div style={{display:"flex",justifyContent:"space-between",gap:"10px"}}><button onClick={()=>setStep(2)} style={btnS(c)}>← Voltar</button><button onClick={save} style={btnP(c,false)}><CheckCircle size={14}/>{editId?"Salvar":"Criar Assistente"}</button></div>
       </>}
-		
+    </div>}
+
     {/* Conversations */}
     {viewConvId&&<div style={{...card(c),marginBottom:"16px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
