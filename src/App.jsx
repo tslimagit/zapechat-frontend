@@ -388,7 +388,15 @@ function QrCodePage(){
     try{const{data}=await authApi.qrcode();setQrcode(data.qrcode||null);setStatus("waiting_scan");}catch(e){setStatus("error");}finally{setLoading(false);}
   };
 
-  useEffect(()=>{checkStatus();const i=setInterval(checkStatus,5000);return()=>clearInterval(i);},[]);
+useEffect(()=>{checkStatus();const i=setInterval(checkStatus,5000);return()=>clearInterval(i);},[]);
+
+  // Auto-refresh QR Code a cada 15 segundos enquanto não conectar
+  useEffect(()=>{
+    if(status==="connected"||status==="loading")return;
+    if(!qrcode)return;
+    const i=setInterval(()=>{getQr();},15000);
+    return()=>clearInterval(i);
+  },[status,qrcode]);
 
 if(status==="connected")return(
     <div style={{padding:"24px",display:"flex",justifyContent:"center"}}>
