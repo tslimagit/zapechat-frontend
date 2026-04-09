@@ -26,6 +26,13 @@ api.interceptors.response.use(
   }
 );
 
+export const profileApi = {
+  get: () => api.get('/profile'),
+  update: (data) => api.put('/profile', data),
+  updateAvatar: (data) => api.put('/profile/avatar', data),
+  changePassword: (data) => api.put('/profile/password', data),
+};
+
 export const authApi = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   signup: (data) => api.post('/auth/signup', data),
