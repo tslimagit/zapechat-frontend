@@ -1041,8 +1041,156 @@ function ContactsPage(){
     </div>
   </
 
-function SettingsPage({user,onProfileUpdate}){const{dark}=useTheme();const c=C(dark);const[name,setName]=useState(user?.name||"");const[company,setCompany]=useState(user?.company||"");const[phone,setPhone]=useState(user?.phone||"");const[saving,setSaving]=useState(false);const[toast,setToast]=useState(null);const save=async()=>{setSaving(true);try{const{data}=await authApi.updateProfile({name,company,phone});setToast({msg:"Perfil atualizado!",type:"success"});if(onProfileUpdate)onProfileUpdate(data.user);}catch(e){setToast({msg:"Erro",type:"error"});}finally{setSaving(false);}};return(<div style={{padding:"24px",maxWidth:"700px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}<div style={card(c)}><div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}}><Settings size={20} color={c.accent}/><h3 style={{margin:0,fontSize:"18px",fontWeight:"700",color:c.text}}>Meu Perfil</h3></div><p style={{margin:"0 0 22px",fontSize:"13px",color:c.textMut}}>Edite suas informações</p><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome</label><input value={name} onChange={e=>setName(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Empresa</label><input value={company} onChange={e=>setCompany(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Telefone</label><input value={phone} onChange={e=>setPhone(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Instância WhatsApp</label><div style={{padding:"12px 16px",background:c.bgInput,borderRadius:"12px",color:c.textSec,fontSize:"14px",border:`1px solid ${c.border}`}}>{user?.evolution_instance||"Não configurada"}</div></div><button onClick={save} disabled={saving} style={btnP(c,saving)}>{saving?"Salvando...":"Salvar"}</button></div></div>);}
-
+// ==========================================
+// NOVA SettingsPage - Substitua inteira no App.jsx
+// Importar profileApi no topo
+// ==========================================
+ 
+function SettingsPage({user,onProfileUpdate}){
+  const{dark}=useTheme();const c=C(dark);
+  const[profile,setProfile]=useState({full_name:"",phone:"",company:"",billing_email:"",avatar_url:""});
+  const[loading,setLoading]=useState(true);const[toast,setToast]=useState(null);const[saving,setSaving]=useState(false);
+  const[tab,setTab]=useState("profile");
+  const[passwords,setPasswords]=useState({current_password:"",new_password:"",confirm_password:""});
+  const[changingPw,setChangingPw]=useState(false);
+ 
+  useEffect(()=>{(async()=>{try{const{data}=await profileApi.get();setProfile(data.profile||{});}catch(e){}finally{setLoading(false);}})();},[]);
+ 
+  const saveProfile=async()=>{
+    setSaving(true);
+    try{
+      const{data}=await profileApi.update({full_name:profile.full_name,phone:profile.phone,company:profile.company,billing_email:profile.billing_email});
+      setProfile(data.profile);setToast({msg:"Perfil atualizado!",type:"success"});
+      if(onProfileUpdate)onProfileUpdate(data.profile);
+    }catch(e){setToast({msg:"Erro ao salvar",type:"error"});}finally{setSaving(false);}
+  };
+ 
+  const uploadAvatar=async(e)=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=async()=>{
+      try{
+        const{data}=await profileApi.updateAvatar({avatar:reader.result});
+        setProfile(prev=>({...prev,avatar_url:data.avatar_url}));
+        setToast({msg:"Foto atualizada!",type:"success"});
+        if(onProfileUpdate)onProfileUpdate({...profile,avatar_url:data.avatar_url});
+      }catch(e){setToast({msg:"Erro ao salvar foto",type:"error"});}
+    };
+    reader.readAsDataURL(file);
+  };
+ 
+  const changePassword=async()=>{
+    if(!passwords.current_password||!passwords.new_password){setToast({msg:"Preencha as senhas",type:"error"});return;}
+    if(passwords.new_password!==passwords.confirm_password){setToast({msg:"Senhas não conferem",type:"error"});return;}
+    if(passwords.new_password.length<6){setToast({msg:"Mínimo 6 caracteres",type:"error"});return;}
+    setChangingPw(true);
+    try{
+      await profileApi.changePassword({current_password:passwords.current_password,new_password:passwords.new_password});
+      setToast({msg:"Senha alterada!",type:"success"});setPasswords({current_password:"",new_password:"",confirm_password:""});
+    }catch(e){setToast({msg:e.response?.data?.error||"Erro ao alterar senha",type:"error"});}finally{setChangingPw(false);}
+  };
+ 
+  const planLabels={complete:"Plano Completo",groups:"Grupos",automations:"Automações",ai:"Assistente IA",groups_automations:"Grupos + Automações"};
+ 
+  if(loading)return<div style={{padding:"40px",textAlign:"center",color:c.textMut}}><RefreshCw size={24} style={{animation:"spin 1s linear infinite"}}/></div>;
+ 
+  return(<div style={{padding:"24px",maxWidth:"800px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
+ 
+    {/* Tabs */}
+    <div style={{display:"flex",gap:"8px",marginBottom:"20px"}}>
+      <button onClick={()=>setTab("profile")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="profile"?c.accent:c.bgInput,color:tab==="profile"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Perfil</button>
+      <button onClick={()=>setTab("plan")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="plan"?c.accent:c.bgInput,color:tab==="plan"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Plano</button>
+      <button onClick={()=>setTab("security")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="security"?c.accent:c.bgInput,color:tab==="security"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Segurança</button>
+    </div>
+ 
+    {/* Profile Tab */}
+    {tab==="profile"&&<div style={card(c)}>
+      <h3 style={{margin:"0 0 20px",fontSize:"18px",fontWeight:"700",color:c.text}}>Meu Perfil</h3>
+ 
+      {/* Avatar */}
+      <div style={{display:"flex",alignItems:"center",gap:"16px",marginBottom:"24px"}}>
+        <div style={{position:"relative"}}>
+          {profile.avatar_url?
+            <img src={profile.avatar_url} alt="" style={{width:"72px",height:"72px",borderRadius:"50%",objectFit:"cover",border:`3px solid ${c.accent}`}}/>:
+            <div style={{width:"72px",height:"72px",borderRadius:"50%",background:`linear-gradient(135deg,${c.accent},${c.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"28px",fontWeight:"800",color:"white"}}>{(profile.full_name||profile.email||"U")[0].toUpperCase()}</div>
+          }
+          <label style={{position:"absolute",bottom:"-4px",right:"-4px",width:"28px",height:"28px",borderRadius:"50%",background:c.accent,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",border:`2px solid ${c.bg}`}}>
+            <Camera size={14} color="white"/>
+            <input type="file" accept="image/*" onChange={uploadAvatar} style={{display:"none"}}/>
+          </label>
+        </div>
+        <div><div style={{fontSize:"16px",fontWeight:"700",color:c.text}}>{profile.full_name||"Sem nome"}</div><div style={{fontSize:"13px",color:c.textMut}}>{profile.email}</div></div>
+      </div>
+ 
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"16px"}}>
+        <div><label style={lbl(c)}>Nome Completo</label><input value={profile.full_name||""} onChange={e=>setProfile({...profile,full_name:e.target.value})} placeholder="Seu nome" style={inp(c)}/></div>
+        <div><label style={lbl(c)}>Telefone</label><input value={profile.phone||""} onChange={e=>setProfile({...profile,phone:e.target.value})} placeholder="11999887766" style={inp(c)}/></div>
+        <div><label style={lbl(c)}>Empresa</label><input value={profile.company||""} onChange={e=>setProfile({...profile,company:e.target.value})} placeholder="Sua empresa" style={inp(c)}/></div>
+        <div><label style={lbl(c)}>Email de Cobrança</label><input value={profile.billing_email||""} onChange={e=>setProfile({...profile,billing_email:e.target.value})} placeholder="financeiro@empresa.com" style={inp(c)}/></div>
+      </div>
+ 
+      <div style={{padding:"14px",borderRadius:"12px",background:c.bgInput,border:`1px solid ${c.border}`,marginBottom:"20px"}}>
+        <div style={{fontSize:"12px",color:c.textMut,marginBottom:"4px"}}>Email de login</div>
+        <div style={{fontSize:"14px",color:c.text,fontWeight:"600"}}>{profile.email}</div>
+      </div>
+ 
+      <button onClick={saveProfile} disabled={saving} style={btnP(c,saving)}>{saving?"Salvando...":"Salvar Perfil"}</button>
+    </div>}
+ 
+    {/* Plan Tab */}
+    {tab==="plan"&&<div style={card(c)}>
+      <h3 style={{margin:"0 0 20px",fontSize:"18px",fontWeight:"700",color:c.text}}>Meu Plano</h3>
+ 
+      <div style={{background:`linear-gradient(135deg,${c.accent}15,${c.violet}15)`,borderRadius:"16px",padding:"24px",marginBottom:"20px",border:`1px solid ${c.accent}33`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:"12px",color:c.textMut,fontWeight:"600",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"6px"}}>Plano Atual</div>
+            <div style={{fontSize:"24px",fontWeight:"800",color:c.text}}>{planLabels[profile.plan]||"Completo"}</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:"32px",fontWeight:"900",color:c.accent}}>R$ 97</div>
+            <div style={{fontSize:"13px",color:c.textMut}}>/mês</div>
+          </div>
+        </div>
+        {profile.plan_expires_at&&<div style={{marginTop:"12px",fontSize:"12px",color:c.textMut}}>Válido até: {new Date(profile.plan_expires_at).toLocaleDateString("pt-BR")}</div>}
+      </div>
+ 
+      <div style={{marginBottom:"16px"}}>
+        <div style={{fontSize:"14px",fontWeight:"700",color:c.text,marginBottom:"12px"}}>Funcionalidades Inclusas</div>
+        {["Assistente IA (OpenAI, Claude, Gemini)","Disparo em massa ilimitado","Automações de vendas (Hotmart, Eduzz, Kiwify, Voomp)","Gestão completa de grupos","Monitor de entrada/saída","Relatórios com exportação","Upload via MinIO","Agendamentos + lembretes WhatsApp","Suporte via WhatsApp"].map(f=>
+          <div key={f} style={{display:"flex",alignItems:"center",gap:"8px",padding:"6px 0",fontSize:"13px",color:c.textSec}}>
+            <CheckCircle size={14} color={c.ok}/>{f}
+          </div>
+        )}
+      </div>
+ 
+      <div style={{padding:"14px",borderRadius:"10px",background:c.bgInput,border:`1px solid ${c.border}`,fontSize:"13px",color:c.textMut}}>
+        Para alterar ou cancelar seu plano, entre em contato via WhatsApp.
+      </div>
+    </div>}
+ 
+    {/* Security Tab */}
+    {tab==="security"&&<div style={card(c)}>
+      <h3 style={{margin:"0 0 20px",fontSize:"18px",fontWeight:"700",color:c.text}}>Segurança</h3>
+ 
+      <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Senha Atual</label><input type="password" value={passwords.current_password} onChange={e=>setPasswords({...passwords,current_password:e.target.value})} placeholder="••••••" style={inp(c)}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"20px"}}>
+        <div><label style={lbl(c)}>Nova Senha</label><input type="password" value={passwords.new_password} onChange={e=>setPasswords({...passwords,new_password:e.target.value})} placeholder="Mínimo 6 caracteres" style={inp(c)}/></div>
+        <div><label style={lbl(c)}>Confirmar Nova Senha</label><input type="password" value={passwords.confirm_password} onChange={e=>setPasswords({...passwords,confirm_password:e.target.value})} placeholder="Repita a nova senha" style={inp(c)}/></div>
+      </div>
+ 
+      <button onClick={changePassword} disabled={changingPw} style={btnP(c,changingPw)}>{changingPw?"Alterando...":"Alterar Senha"}</button>
+ 
+      <div style={{marginTop:"24px",paddingTop:"20px",borderTop:`1px solid ${c.border}`}}>
+        <div style={{fontSize:"14px",fontWeight:"700",color:c.text,marginBottom:"8px"}}>Informações da Conta</div>
+        <div style={{fontSize:"13px",color:c.textMut}}>Email: {profile.email}</div>
+        <div style={{fontSize:"13px",color:c.textMut}}>Criada em: {profile.created_at?new Date(profile.created_at).toLocaleDateString("pt-BR"):""}</div>
+        <div style={{fontSize:"13px",color:c.textMut}}>Status: <span style={{color:profile.is_active?c.ok:c.danger,fontWeight:"600"}}>{profile.is_active?"Ativa":"Inativa"}</span></div>
+      </div>
+    </div>}
+  </div>);
+}
+	  
 // ==========================================
 // NOVA GroupEventsPage - Adicionar no App.jsx
 // Importar groupEventsApi no topo
