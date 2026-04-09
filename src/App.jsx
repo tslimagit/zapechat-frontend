@@ -1542,11 +1542,6 @@ function AIAssistantPage(){
           </>}
         </div>
  
-        <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Intervalo entre respostas (segundos)</label>
-          <input type="range" min="0" max="10" value={form.response_delay} onChange={e=>setForm({...form,response_delay:parseInt(e.target.value)})} style={{width:"100%",accentColor:c.accent}}/>
-          <span style={{fontSize:"12px",color:c.textMut}}>{form.response_delay} segundo{form.response_delay!==1?"s":""}</span>
-        </div>
- 
         <div style={{display:"flex",justifyContent:"flex-end",gap:"10px"}}><button onClick={()=>{setShowForm(false);resetForm();}} style={btnS(c)}>Cancelar</button><button onClick={()=>setStep(2)} style={btnP(c,false)}>Próxima →</button></div>
       </>}
  
