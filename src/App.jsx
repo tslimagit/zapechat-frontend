@@ -1038,6 +1038,9 @@ function ContactsPage(){
           </td>
         </tr>)}
       </tbody></table></div>}
+    </div>
+  </div>);
+}
  
 function SettingsPage({user,onProfileUpdate}){
   const{dark}=useTheme();const c=C(dark);
