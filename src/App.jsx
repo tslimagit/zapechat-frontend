@@ -700,14 +700,14 @@ function GroupsPage(){
   // Mass send state
   const[massSelectedGroups,setMassSelectedGroups]=useState([]);const[massText,setMassText]=useState("");
   const[massMedia,setMassMedia]=useState(null);const[massInterval,setMassInterval]=useState("3");
-  const[massMentionAll,setMassMentionAll]=useState(false);const[massSending,setMassSending]=useState(false);const[massScheduled,setMassScheduled]=useState("");
+  const[massMentionAll,setMassMentionAll]=useState(false);const[massSending,setMassSending]=useState(false);const[massScheduled,setMassScheduled]=useState("");const[massCampaigns,setMassCampaigns]=useState([]);
 
   // Manage state
   const[members,setMembers]=useState([]);const[loadingMembers,setLoadingMembers]=useState(false);
   const[editName,setEditName]=useState("");const[editDesc,setEditDesc]=useState("");
   const[addNumber,setAddNumber]=useState("");const[inviteLink,setInviteLink]=useState("");
 
-  const load=async()=>{try{const{data}=await groupsApi.list();setGroups(data.groups||[]);}catch(e){}finally{setLoading(false);}};
+  const load=async()=>{try{const[gRes,cRes]=await Promise.all([groupsApi.list(),campaignsApi.list()]);setGroups(gRes.data.groups||[]);setMassCampaigns((cRes.data.campaigns||[]).filter(c=>c.name?.startsWith("Grupo:")));}catch(e){}finally{setLoading(false);}};
   const sync=async()=>{setSyncing(true);try{await groupsApi.sync();await load();setToast({msg:"Grupos sincronizados!",type:"success"});}catch(e){setToast({msg:"Falha ao sincronizar",type:"error"});}finally{setSyncing(false);}};
   useEffect(()=>{load();},[]);
 
@@ -873,10 +873,22 @@ function GroupsPage(){
           <button onClick={massSendToGroups} disabled={massSending||massSelectedGroups.length===0||(!massText&&!massMedia)} style={btnP(c,massSending||massSelectedGroups.length===0||(!massText&&!massMedia))}>{massSending?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:massScheduled?<Calendar size={14}/>:<Play size={14}/>}{massSending?"Enviando...":massScheduled?"Agendar Disparo":"Iniciar Disparo"}</button>
         </>}
 
-         {/* Mini histórico */}
+        {/* Histórico de disparos */}
           <div style={{marginTop:"20px",paddingTop:"16px",borderTop:`1px solid ${c.border}`}}>
-            <h4 style={{margin:"0 0 10px",fontSize:"13px",fontWeight:"700",color:c.textMut}}>Últimos Disparos</h4>
-            <p style={{fontSize:"12px",color:c.textMut}}>Acesse a tela "Disparo em Massa" para ver o histórico completo com estatísticas.</p>
+            <h4 style={{margin:"0 0 12px",fontSize:"14px",fontWeight:"700",color:c.text}}>Histórico de Disparos em Grupos</h4>
+            {massCampaigns.length===0?<p style={{fontSize:"12px",color:c.textMut}}>Nenhum disparo em grupo registrado.</p>:
+            <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
+              {["Campanha","Total","Enviadas","Falhas","Status","Data"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 10px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
+            </tr></thead><tbody>
+              {massCampaigns.slice(0,10).map(cp=>{const st=cp.status==="completed"?{bg:c.okSoft,col:c.ok,l:"Concluída"}:cp.status==="running"?{bg:c.warnSoft,col:c.warn,l:"Enviando"}:cp.status==="scheduled"?{bg:c.infoSoft,col:c.info,l:"Agendada"}:{bg:c.bgInput,col:c.textMut,l:cp.status};return<tr key={cp.id}>
+                <td style={{padding:"8px 10px",fontSize:"12px",fontWeight:"600",color:c.text}}>{cp.name?.replace("Grupo: ","")}</td>
+                <td style={{padding:"8px 10px",fontSize:"12px",color:c.textSec}}>{cp.total_recipients}</td>
+                <td style={{padding:"8px 10px",fontSize:"12px",color:c.ok}}>{cp.sent_count}</td>
+                <td style={{padding:"8px 10px",fontSize:"12px",color:cp.failed_count>0?c.danger:c.textMut}}>{cp.failed_count}</td>
+                <td style={{padding:"8px 10px"}}><span style={{fontSize:"10px",fontWeight:"600",padding:"2px 8px",borderRadius:"6px",background:st.bg,color:st.col}}>{st.l}</span></td>
+                <td style={{padding:"8px 10px",fontSize:"11px",color:c.textMut}}>{cp.created_at?new Date(cp.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</td>
+              </tr>;})}
+            </tbody></table></div>}
           </div>
 		  
         {/* No group selected */}
