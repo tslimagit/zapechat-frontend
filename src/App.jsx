@@ -870,7 +870,176 @@ function GroupsPage(){
 
 function ReportsPage(){const{dark}=useTheme();const c=C(dark);const[campaigns,setCampaigns]=useState([]);const[topGroups,setTopGroups]=useState([]);const[loading,setLoading]=useState(true);const[toast,setToast]=useState(null);useEffect(()=>{(async()=>{try{const[cp,gr]=await Promise.all([reportsApi.campaignStats(),reportsApi.topGroups()]);setCampaigns(cp.data.campaigns||[]);setTopGroups(gr.data.groups||[]);}catch(e){}finally{setLoading(false);}})();},[]);const exp=async(t)=>{try{const r=t==="excel"?await reportsApi.exportExcel():await reportsApi.exportPdf();const u=window.URL.createObjectURL(new Blob([r.data]));const a=document.createElement('a');a.href=u;a.download=`relatorio.${t==="excel"?"xlsx":"pdf"}`;a.click();setToast({msg:"Exportado!",type:"success"});}catch(e){setToast({msg:"Erro",type:"error"});}};const stS=s=>({completed:{bg:c.okSoft,col:c.ok,l:"Concluída"},running:{bg:c.warnSoft,col:c.warn,l:"Enviando"},scheduled:{bg:c.infoSoft,col:c.info,l:"Agendada"},draft:{bg:c.bgInput,col:c.textMut,l:"Rascunho"}}[s]||{bg:c.bgInput,col:c.textMut,l:s});if(loading)return<div style={{padding:"40px",textAlign:"center",color:c.textMut}}>Carregando...</div>;return(<div style={{padding:"24px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}<div style={{display:"flex",gap:"8px",marginBottom:"20px"}}><div style={{flex:1}}/><button onClick={()=>exp("excel")} style={{...btnS(c),padding:"7px 14px",fontSize:"12px"}}><Download size={13}/>Excel</button><button onClick={()=>exp("pdf")} style={{...btnS(c),padding:"7px 14px",fontSize:"12px",color:c.danger}}><Download size={13}/>PDF</button></div>{campaigns.length>0&&<div style={{...card(c),marginBottom:"20px"}}><h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Campanhas</h3><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Campanha","Enviadas","Entregues","Lidas","Falhas","Status"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}</tr></thead><tbody>{campaigns.map(cp=>{const st=stS(cp.status);return<tr key={cp.id}><td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{cp.name}</td><td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.sent_count}</td><td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.delivered_count}</td><td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.read_count}</td><td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.failed_count}</td><td style={{padding:"10px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:st.bg,color:st.col}}>{st.l}</span></td></tr>;})}</tbody></table></div></div>}{topGroups.length>0&&<div style={card(c)}><h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Ranking de Grupos</h3>{topGroups.map((g,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:i<topGroups.length-1?`1px solid ${c.border}`:"none"}}><div style={{display:"flex",alignItems:"center",gap:"10px"}}><span style={{width:"26px",height:"26px",borderRadius:"8px",background:i===0?c.warnSoft:c.bgInput,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"12px",fontWeight:"700",color:i===0?c.warn:c.textMut}}>{i+1}</span><span style={{fontSize:"13px",fontWeight:"600",color:c.text}}>{g.name||g.group_jid}</span></div><span style={{fontSize:"13px",color:c.textMut}}>{g.message_count||0} msgs</span></div>)}</div>}</div>);}
 
-function ContactsPage(){const{dark}=useTheme();const c=C(dark);const[contacts,setContacts]=useState([]);const[search,setSearch]=useState("");const[loading,setLoading]=useState(true);const[toast,setToast]=useState(null);const load=async(s)=>{try{const{data}=await contactsApi.list({search:s,limit:50});setContacts(data.contacts||[]);}catch(e){}finally{setLoading(false);}};useEffect(()=>{load(search);},[search]);const importCsv=async(e)=>{const f=e.target.files[0];if(!f)return;try{const{data}=await contactsApi.importCsv(f);setToast({msg:`Importados: ${data.imported}`,type:"success"});load(search);}catch(e){setToast({msg:"Erro",type:"error"});}};return(<div style={{padding:"24px",maxWidth:"700px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}<div style={card(c)}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}><h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text}}>Contatos</h3><label style={{...btnS(c),padding:"7px 14px",fontSize:"12px",cursor:"pointer"}}><Upload size={13}/>Importar CSV<input type="file" accept=".csv" onChange={importCsv} style={{display:"none"}}/></label></div><div style={{position:"relative",marginBottom:"16px"}}><Search size={15} color={c.textMut} style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)"}}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar..." style={{...inp(c),paddingLeft:"38px"}}/></div>{loading?<p style={{color:c.textMut,textAlign:"center"}}>Carregando...</p>:contacts.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhum contato</p>:contacts.map(ct=><div key={ct.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderRadius:"10px",marginBottom:"2px"}} onMouseEnter={e=>e.currentTarget.style.background=c.bgCardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><div style={{display:"flex",alignItems:"center",gap:"10px"}}><div style={{width:"36px",height:"36px",borderRadius:"50%",background:`linear-gradient(135deg,${c.accent}44,${c.violet}44)`,display:"flex",alignItems:"center",justifyContent:"center",color:c.accent,fontSize:"14px",fontWeight:"700"}}>{(ct.name||ct.phone).charAt(0).toUpperCase()}</div><div><div style={{fontSize:"13px",fontWeight:"600",color:c.text}}>{ct.name||"Sem nome"}</div><div style={{fontSize:"11px",color:c.textMut,fontFamily:"monospace"}}>{ct.phone}</div></div></div></div>)}</div></div>);}
+function ContactsPage(){
+  const{dark}=useTheme();const c=C(dark);
+  const[contacts,setContacts]=useState([]);const[tags,setTags]=useState([]);
+  const[search,setSearch]=useState("");const[filterTag,setFilterTag]=useState("");
+  const[loading,setLoading]=useState(true);const[toast,setToast]=useState(null);
+  const[showCreate,setShowCreate]=useState(false);const[editId,setEditId]=useState(null);
+  const[selected,setSelected]=useState([]);const[showTagForm,setShowTagForm]=useState(false);
+  const[newTagName,setNewTagName]=useState("");const[newTagColor,setNewTagColor]=useState("#10b981");
+  const[bulkTagName,setBulkTagName]=useState("");
+  const[pagination,setPagination]=useState({page:1,total:0});
+ 
+  // Contact form
+  const[form,setForm]=useState({name:"",phone:"",email:"",tags:[],notes:""});
+  const[tagInput,setTagInput]=useState("");
+ 
+  const load=async()=>{
+    try{
+      const[cRes,tRes]=await Promise.all([
+        contactsApi.list({search,tag:filterTag||undefined,limit:50,page:pagination.page}),
+        contactsApi.tags(),
+      ]);
+      setContacts(cRes.data.contacts||[]);setPagination(prev=>({...prev,total:cRes.data.pagination?.total||0}));
+      setTags(tRes.data.tags||[]);
+    }catch(e){}finally{setLoading(false);}
+  };
+  useEffect(()=>{setLoading(true);load();},[search,filterTag]);
+ 
+  const resetForm=()=>{setForm({name:"",phone:"",email:"",tags:[],notes:""});setTagInput("");setEditId(null);};
+ 
+  const saveContact=async()=>{
+    if(!form.phone){setToast({msg:"Telefone obrigatório",type:"error"});return;}
+    try{
+      if(editId){await contactsApi.update(editId,form);setToast({msg:"Contato atualizado!",type:"success"});}
+      else{await contactsApi.create(form);setToast({msg:"Contato criado!",type:"success"});}
+      setShowCreate(false);resetForm();load();
+    }catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}
+  };
+ 
+  const editContact=(ct)=>{
+    setForm({name:ct.name||"",phone:ct.phone||"",email:ct.email||"",tags:ct.tags||[],notes:ct.notes||""});
+    setEditId(ct.id);setShowCreate(true);
+  };
+ 
+  const deleteContact=async(id)=>{
+    if(!confirm("Remover contato?"))return;
+    try{await contactsApi.delete(id);setToast({msg:"Removido!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  const addTagToForm=()=>{
+    if(!tagInput.trim())return;
+    const tag=tagInput.trim().toLowerCase();
+    if(!form.tags.includes(tag))setForm({...form,tags:[...form.tags,tag]});
+    setTagInput("");
+  };
+ 
+  const removeTagFromForm=(tag)=>{setForm({...form,tags:form.tags.filter(t=>t!==tag)});};
+ 
+  // Bulk tag operations
+  const toggleSelect=(id)=>{setSelected(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);};
+  const selectAll=()=>{if(selected.length===contacts.length)setSelected([]);else setSelected(contacts.map(c=>c.id));};
+ 
+  const applyBulkTag=async()=>{
+    if(!bulkTagName.trim()||selected.length===0){setToast({msg:"Selecione contatos e digite uma tag",type:"error"});return;}
+    try{await contactsApi.bulkTag({contact_ids:selected,tag:bulkTagName.trim()});setToast({msg:`Tag "${bulkTagName}" aplicada a ${selected.length} contatos`,type:"success"});setBulkTagName("");setSelected([]);load();}
+    catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  // Tags CRUD
+  const createTag=async()=>{
+    if(!newTagName.trim())return;
+    try{await contactsApi.createTag({name:newTagName.trim(),color:newTagColor});setToast({msg:"Tag criada!",type:"success"});setNewTagName("");setShowTagForm(false);load();}
+    catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  const deleteTag=async(name)=>{
+    if(!confirm(`Remover tag "${name}" de todos os contatos?`))return;
+    try{await contactsApi.deleteTag(name);setToast({msg:"Tag removida!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  // CSV import
+  const importCsv=async(e)=>{
+    const f=e.target.files[0];if(!f)return;
+    const importTags=prompt("Tags para aplicar a todos os contatos importados (separar por vírgula, ou deixe vazio):");
+    try{const{data}=await contactsApi.importCsv(f,importTags||"");setToast({msg:`Importados: ${data.imported}, Erros: ${data.errors}`,type:data.imported>0?"success":"error"});load();}
+    catch(e){setToast({msg:"Erro na importação",type:"error"});}
+    e.target.value="";
+  };
+ 
+  const tagColors=["#10b981","#8b5cf6","#3b82f6","#f59e0b","#ef4444","#ec4899","#06b6d4","#84cc16"];
+ 
+  return(<div style={{padding:"24px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
+ 
+    {/* Tags Bar */}
+    <div style={{...card(c),marginBottom:"16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
+        <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text}}>Tags</h3>
+        <button onClick={()=>setShowTagForm(!showTagForm)} style={{...btnS(c),padding:"6px 12px",fontSize:"11px"}}><Plus size={12}/>Nova Tag</button>
+      </div>
+ 
+      {showTagForm&&<div style={{display:"flex",gap:"8px",marginBottom:"12px",alignItems:"center"}}>
+        <input value={newTagName} onChange={e=>setNewTagName(e.target.value)} placeholder="Nome da tag" style={{...inp(c),flex:1,padding:"8px 12px"}} onKeyDown={e=>e.key==='Enter'&&createTag()}/>
+        <div style={{display:"flex",gap:"4px"}}>{tagColors.map(cl=><div key={cl} onClick={()=>setNewTagColor(cl)} style={{width:"24px",height:"24px",borderRadius:"6px",background:cl,cursor:"pointer",border:newTagColor===cl?`2px solid ${c.text}`:"2px solid transparent"}}/>)}</div>
+        <button onClick={createTag} style={{...btnP(c,false),padding:"8px 14px",fontSize:"12px"}}>Criar</button>
+      </div>}
+ 
+      <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+        <button onClick={()=>setFilterTag("")} style={{padding:"5px 12px",borderRadius:"8px",border:`1px solid ${!filterTag?c.accent:c.border}`,background:!filterTag?c.accentSoft:c.bgInput,color:!filterTag?c.accent:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>Todos ({pagination.total})</button>
+        {tags.map(t=>(
+          <div key={t.id} style={{display:"flex",alignItems:"center",gap:"4px"}}>
+            <button onClick={()=>setFilterTag(t.name)} style={{padding:"5px 12px",borderRadius:"8px",border:`1px solid ${filterTag===t.name?t.color:c.border}`,background:filterTag===t.name?t.color+"22":"transparent",color:filterTag===t.name?t.color:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"4px"}}><div style={{width:"8px",height:"8px",borderRadius:"50%",background:t.color}}/>{t.name} ({t.contact_count||0})</button>
+            <button onClick={()=>deleteTag(t.name)} style={{background:"none",border:"none",cursor:"pointer",color:c.textMut,padding:"2px"}}><X size={12}/></button>
+          </div>
+        ))}
+      </div>
+    </div>
+ 
+    {/* Toolbar */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px",flexWrap:"wrap",gap:"10px"}}>
+      <div style={{position:"relative",flex:1,maxWidth:"400px"}}><Search size={15} color={c.textMut} style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)"}}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nome, telefone ou email..." style={{...inp(c),paddingLeft:"38px",width:"100%"}}/></div>
+      <div style={{display:"flex",gap:"8px"}}>
+        {selected.length>0&&<div style={{display:"flex",gap:"6px",alignItems:"center"}}><input value={bulkTagName} onChange={e=>setBulkTagName(e.target.value)} placeholder="Tag" style={{...inp(c),width:"120px",padding:"8px 12px"}} onKeyDown={e=>e.key==='Enter'&&applyBulkTag()}/><button onClick={applyBulkTag} style={{...btnP(c,false),padding:"8px 14px",fontSize:"12px"}}>Aplicar tag ({selected.length})</button></div>}
+        <label style={{...btnS(c),padding:"8px 14px",fontSize:"12px",cursor:"pointer"}}><Upload size={13}/>CSV<input type="file" accept=".csv" onChange={importCsv} style={{display:"none"}}/></label>
+        <button onClick={()=>{setShowCreate(true);resetForm();}} style={btnP(c,false)}><Plus size={14}/>Novo Contato</button>
+      </div>
+    </div>
+ 
+    {/* Create/Edit Form */}
+    {showCreate&&<div style={{...card(c),marginBottom:"16px"}}>
+      <h3 style={{margin:"0 0 16px",fontSize:"16px",fontWeight:"700",color:c.text}}>{editId?"Editar":"Novo"} Contato</h3>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"14px",marginBottom:"14px"}}>
+        <div><label style={lbl(c)}>Nome</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="João Silva" style={inp(c)}/></div>
+        <div><label style={lbl(c)}>Telefone</label><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="5511999887766" style={inp(c)}/></div>
+        <div><label style={lbl(c)}>Email</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="email@exemplo.com" style={inp(c)}/></div>
+      </div>
+      <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Tags</label>
+        <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"8px"}}>{form.tags.map(t=><span key={t} style={{padding:"4px 10px",borderRadius:"6px",background:c.accentSoft,color:c.accent,fontSize:"12px",fontWeight:"600",display:"flex",alignItems:"center",gap:"4px"}}>{t}<button onClick={()=>removeTagFromForm(t)} style={{background:"none",border:"none",cursor:"pointer",color:c.accent,padding:0}}><X size={12}/></button></span>)}</div>
+        <div style={{display:"flex",gap:"6px"}}><input value={tagInput} onChange={e=>setTagInput(e.target.value)} placeholder="Adicionar tag..." style={{...inp(c),flex:1}} onKeyDown={e=>e.key==='Enter'&&(e.preventDefault(),addTagToForm())}/><button onClick={addTagToForm} type="button" style={{...btnS(c),padding:"8px 14px",fontSize:"12px"}}>+</button></div>
+      </div>
+      <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Observações..." rows={2} style={{...inp(c),resize:"vertical"}}/></div>
+      <div style={{display:"flex",gap:"10px"}}><button onClick={saveContact} style={btnP(c,false)}><CheckCircle size={14}/>{editId?"Salvar":"Criar"}</button><button onClick={()=>{setShowCreate(false);resetForm();}} style={btnS(c)}>Cancelar</button></div>
+    </div>}
+ 
+    {/* Contacts List */}
+    <div style={card(c)}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+        <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text}}>Contatos {filterTag&&<span style={{fontSize:"12px",color:c.accent,fontWeight:"600"}}>— tag: {filterTag}</span>}</h3>
+        {contacts.length>0&&<button onClick={selectAll} style={{...btnS(c),padding:"5px 12px",fontSize:"11px"}}>{selected.length===contacts.length?"Desmarcar":"Selecionar"} todos</button>}
+      </div>
+ 
+      {loading?<p style={{color:c.textMut,textAlign:"center",padding:"20px"}}>Carregando...</p>:
+      contacts.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhum contato{filterTag?` com tag "${filterTag}"`:""}</p>:
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
+        <th style={{width:"30px",padding:"8px"}}></th>
+        {["Nome","Telefone","Email","Tags","Notas","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
+      </tr></thead><tbody>
+        {contacts.map(ct=><tr key={ct.id} onMouseEnter={e=>e.currentTarget.style.background=c.bgCardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <td style={{padding:"8px",textAlign:"center"}}><input type="checkbox" checked={selected.includes(ct.id)} onChange={()=>toggleSelect(ct.id)} style={{accentColor:c.accent}}/></td>
+          <td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{ct.name||"—"}</td>
+          <td style={{padding:"10px 12px",fontSize:"12px",color:c.textSec,fontFamily:"monospace"}}>{ct.phone}</td>
+          <td style={{padding:"10px 12px",fontSize:"12px",color:c.textSec}}>{ct.email||"—"}</td>
+          <td style={{padding:"10px 12px"}}><div style={{display:"flex",gap:"4px",flexWrap:"wrap"}}>{(ct.tags||[]).map(t=><span key={t} style={{padding:"2px 8px",borderRadius:"4px",background:c.accentSoft,color:c.accent,fontSize:"10px",fontWeight:"600"}}>{t}</span>)}</div></td>
+          <td style={{padding:"10px 12px",fontSize:"12px",color:c.textMut,maxWidth:"150px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ct.notes||"—"}</td>
+          <td style={{padding:"10px 12px",display:"flex",gap:"6px"}}>
+            <button onClick={()=>editContact(ct)} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}}><Edit size={15}/></button>
+            <button onClick={()=>deleteContact(ct.id)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}}><Trash2 size={15}/></button>
+          </td>
+        </tr>)}
+      </tbody></table></div>}
+    </div>
+  </
 
 function SettingsPage({user,onProfileUpdate}){const{dark}=useTheme();const c=C(dark);const[name,setName]=useState(user?.name||"");const[company,setCompany]=useState(user?.company||"");const[phone,setPhone]=useState(user?.phone||"");const[saving,setSaving]=useState(false);const[toast,setToast]=useState(null);const save=async()=>{setSaving(true);try{const{data}=await authApi.updateProfile({name,company,phone});setToast({msg:"Perfil atualizado!",type:"success"});if(onProfileUpdate)onProfileUpdate(data.user);}catch(e){setToast({msg:"Erro",type:"error"});}finally{setSaving(false);}};return(<div style={{padding:"24px",maxWidth:"700px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}<div style={card(c)}><div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}}><Settings size={20} color={c.accent}/><h3 style={{margin:0,fontSize:"18px",fontWeight:"700",color:c.text}}>Meu Perfil</h3></div><p style={{margin:"0 0 22px",fontSize:"13px",color:c.textMut}}>Edite suas informações</p><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome</label><input value={name} onChange={e=>setName(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Empresa</label><input value={company} onChange={e=>setCompany(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Telefone</label><input value={phone} onChange={e=>setPhone(e.target.value)} style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Instância WhatsApp</label><div style={{padding:"12px 16px",background:c.bgInput,borderRadius:"12px",color:c.textSec,fontSize:"14px",border:`1px solid ${c.border}`}}>{user?.evolution_instance||"Não configurada"}</div></div><button onClick={save} disabled={saving} style={btnP(c,saving)}>{saving?"Salvando...":"Salvar"}</button></div></div>);}
 
