@@ -776,14 +776,24 @@ function GroupsPage(){
   const toggleMassGroup=(jid)=>{setMassSelectedGroups(prev=>prev.includes(jid)?prev.filter(j=>j!==jid):[...prev,jid]);};
   const selectAllGroups=()=>{if(massSelectedGroups.length===groups.length)setMassSelectedGroups([]);else setMassSelectedGroups(groups.map(g=>g.group_jid));};
 
-  const massSendToGroups=async()=>{
+const massSendToGroups=async()=>{
     if(massSelectedGroups.length===0||(!massText&&!massMedia)){setToast({msg:"Selecione grupos e preencha mensagem/mídia",type:"error"});return;}
     setMassSending(true);
     try{
-      const data={groupJids:massSelectedGroups,text:massText||'',interval_ms:parseInt(massInterval)*1000,mentionsEveryOne:massMentionAll};
-      if(massMedia){data.media=massMedia.isUrl?massMedia.url:(massMedia.url||'');data.mediaType=massMedia.type;data.mimetype=massMedia.file?.type||'image/png';data.fileName=massMedia.name||'file';data.caption=massText||'';}
-      await groupsApi.massSend(data);
-      setToast({msg:`Disparo iniciado para ${massSelectedGroups.length} grupos!`,type:"success"});setMassText("");setMassMedia(null);setMassSelectedGroups([]);
+      if(massScheduled){
+        // Salvar como campanha agendada
+        const recipients=massSelectedGroups.map(jid=>({phone:jid,name:groups.find(g=>g.group_jid===jid)?.name||jid}));
+        const p={name:"Grupo: Disparo "+new Date().toLocaleDateString("pt-BR"),message:massText||'',recipients,interval_ms:parseInt(massInterval)*1000,scheduled_at:massScheduled};
+        if(massMedia){p.media_url=massMedia.url||'';p.media_type=massMedia.type;}
+        await campaignsApi.create(p);
+        setToast({msg:`Disparo agendado para ${new Date(massScheduled).toLocaleString("pt-BR")} em ${massSelectedGroups.length} grupos!`,type:"success"});
+      }else{
+        const data={groupJids:massSelectedGroups,text:massText||'',interval_ms:parseInt(massInterval)*1000,mentionsEveryOne:massMentionAll};
+        if(massMedia){data.media=massMedia.isUrl?massMedia.url:(massMedia.url||'');data.mediaType=massMedia.type;data.mimetype=massMedia.file?.type||'image/png';data.fileName=massMedia.name||'file';data.caption=massText||'';}
+        await groupsApi.massSend(data);
+        setToast({msg:`Disparo iniciado para ${massSelectedGroups.length} grupos!`,type:"success"});
+      }
+      setMassText("");setMassMedia(null);setMassSelectedGroups([]);setMassScheduled("");load();
     }catch(e){setToast({msg:e.response?.data?.error||"Falha",type:"error"});}finally{setMassSending(false);}
   };
 
