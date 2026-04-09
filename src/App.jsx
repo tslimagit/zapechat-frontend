@@ -1586,7 +1586,7 @@ function AIAssistantPage(){
   </div>);
 }
 
-// ==================== MAIN ====================
+// ==================== MAIN =====================
 function MainContent({page,user,onToggleSidebar,onProfileUpdate}){
   const{dark}=useTheme();const c=C(dark);
   const titles={dashboard:["Dashboard","Visão geral"],qrcode:["WhatsApp","Conecte seu WhatsApp"],send:["Enviar Mensagem","Texto e mídia"],mass:["Disparo em Massa","Campanhas"],groups:["Grupos","Gerencie grupos"],"group-events":["Monitor de Grupos","Entrada e saída"],reports:["Relatórios","Análises"],contacts:["Contatos","Sua lista"],admin:["Admin","Gerenciar clientes"],ai:["Assistente IA","Resposta automática com IA"],automations:["Automações","Webhooks de pagamento"],settings:["Configurações","Seu perfil"]};
