@@ -3,7 +3,7 @@ import {
   Send, Users, BarChart3, LogOut, Moon, Sun, Menu, ChevronRight, Zap, Search, Upload,
   CheckCircle, AlertCircle, Eye, Download, TrendingUp, Mail, Settings, PieChart, Plus,
   RefreshCw, Play, Pause, Hash, Globe, Phone, Image, FileText, Video, Mic, Calendar,
-  Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight, Camera, Clock
+  Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight, Camera
 } from "lucide-react";
 import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi, profileApi } from "./api";
 
