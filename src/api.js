@@ -41,6 +41,13 @@ export const authApi = {
   deleteUser: (id) => api.delete(`/auth/users/${id}`),
 };
 
+export const profileApi = {
+  get: () => api.get('/profile'),
+  update: (data) => api.put('/profile', data),
+  updateAvatar: (data) => api.put('/profile/avatar', data),
+  changePassword: (data) => api.put('/profile/password', data),
+};
+
 export const messagesApi = {
   sendText: (number, text, options = {}) => api.post('/messages/send-text', { number, text, ...options }),
   sendMedia: (data) => api.post('/messages/send-media', data),
