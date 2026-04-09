@@ -1592,7 +1592,7 @@ function MainContent({page,user,onToggleSidebar,onProfileUpdate}){
   const titles={dashboard:["Dashboard","Visão geral"],qrcode:["WhatsApp","Conecte seu WhatsApp"],send:["Enviar Mensagem","Texto e mídia"],mass:["Disparo em Massa","Campanhas"],groups:["Grupos","Gerencie grupos"],"group-events":["Monitor de Grupos","Entrada e saída"],reports:["Relatórios","Análises"],contacts:["Contatos","Sua lista"],admin:["Admin","Gerenciar clientes"],ai:["Assistente IA","Resposta automática com IA"],automations:["Automações","Webhooks de pagamento"],settings:["Configurações","Seu perfil"]};
   return(<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}><div style={{flex:1,background:c.bg,minHeight:"100vh"}}>
     <Header title={titles[page]?.[0]||""} subtitle={titles[page]?.[1]||""} user={user} onToggleSidebar={onToggleSidebar}/>
-    {page==="dashboard"&&<DashboardPage/>}{page==="qrcode"&&<QrCodePage/>}{page==="send"&&<SendMessagePage/>}{page==="mass"&&<MassSendPage/>}{page==="groups"&&<GroupsPage/>}{page==="group-events"&&<GroupEventsPage/>}{page==="reports"&&<ReportsPage/>}{page==="contacts"&&<ContactsPage/>}{page==="admin"&&<AdminPage/>}{page==="ai"&&<AIAssistantPage/>}{page==="automations"&&<AutomationsPage/>}{page==="settings"&&<SettingsPage user={user} onProfileUpdate={(p)=>setUser(prev=>({...prev,...p}))}/>}
+    {page==="dashboard"&&<DashboardPage/>}{page==="qrcode"&&<QrCodePage/>}{page==="send"&&<SendMessagePage/>}{page==="mass"&&<MassSendPage/>}{page==="groups"&&<GroupsPage/>}{page==="group-events"&&<GroupEventsPage/>}{page==="reports"&&<ReportsPage/>}{page==="contacts"&&<ContactsPage/>}{page==="admin"&&<AdminPage/>}{page==="ai"&&<AIAssistantPage/>}{page==="automations"&&<AutomationsPage/>}{page==="settings"&&<SettingsPage user={user} onProfileUpdate={onProfileUpdate}/>}
   </div></div>);
 }
 
@@ -1609,7 +1609,7 @@ function App(){
   return(<ThemeProvider>
     <div style={{display:"flex",minHeight:"100vh",fontFamily:"'Segoe UI',-apple-system,sans-serif"}}>
       <Sidebar active={page} onNavigate={nav} collapsed={collapsed} user={user}/>
-      <MainContent page={page} user={user} onToggleSidebar={()=>setCollapsed(s=>!s)} onProfileUpdate={updateProfile}/>
+      <MainContent page={page} user={user} onToggleSidebar={...} onProfileUpdate={(p)=>setUser(prev=>({...prev,...p}))}/>
     </div>
     <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}} *{box-sizing:border-box;margin:0;padding:0} body{margin:0} ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}`}</style>
   </ThemeProvider>);
