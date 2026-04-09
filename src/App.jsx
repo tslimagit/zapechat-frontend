@@ -3,7 +3,7 @@ import {
   Send, Users, BarChart3, LogOut, Moon, Sun, Menu, ChevronRight, Zap, Search, Upload,
   CheckCircle, AlertCircle, Eye, Download, TrendingUp, Mail, Settings, PieChart, Plus,
   RefreshCw, Play, Pause, Hash, Globe, Phone, Image, FileText, Video, Mic, Calendar,
-  Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight, Camera
+  Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight, Camera, Clock
 } from "lucide-react";
 import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi, profileApi } from "./api";
 
@@ -1406,6 +1406,7 @@ function AIAssistantPage(){
     training_text:"",response_delay:2,answer_without_question:false,
     first_response_text:"",respond_admins:false,scope:"private",
     max_tokens:1000,temperature:0.7,
+	use_work_hours:false, work_start_time:"09:00", work_end_time:"18:00", work_days:["1","2","3","4","5"], out_of_hours_message:"",
   });
  
   const providers=[
@@ -1425,7 +1426,7 @@ function AIAssistantPage(){
   };
   useEffect(()=>{load();},[]);
  
-  const resetForm=()=>{setForm({name:"",provider:"openai",model:"gpt-4o-mini",api_key_id:"",api_key:"",system_prompt:"Você é um assistente útil e amigável. Responda de forma clara e objetiva.",training_text:"",response_delay:2,answer_without_question:false,first_response_text:"",respond_admins:false,scope:"private",max_tokens:1000,temperature:0.7});setStep(1);setEditId(null);};
+  const resetForm=()=>{setForm({name:"",provider:"openai",model:"gpt-4o-mini",api_key_id:"",api_key:"",system_prompt:"Você é um assistente útil e amigável. Responda de forma clara e objetiva.",training_text:"",response_delay:2,answer_without_question:false,first_response_text:"",respond_admins:false,scope:"private",max_tokens:1000,temperature:0.7,use_work_hours:false,work_start_time:"09:00",work_end_time:"18:00",work_days:["1","2","3","4","5"],out_of_hours_message:""});setStep(1);setEditId(null);};
  
   // API Key CRUD
   const saveKey=async()=>{
@@ -1581,26 +1582,62 @@ function AIAssistantPage(){
         <div style={{display:"flex",justifyContent:"space-between",gap:"10px"}}><button onClick={()=>setStep(1)} style={btnS(c)}>← Voltar</button><button onClick={()=>setStep(3)} style={btnP(c,false)}>Próxima →</button></div>
       </>}
  
-      {/* Step 3 */}
+      {/* Step 3 - Configurar */}
       {step===3&&<>
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome do Assistente</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Suporte ao Cliente" style={inp(c)}/></div>
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Primeira resposta fixa (opcional)</label>
           <textarea value={form.first_response_text} onChange={e=>setForm({...form,first_response_text:e.target.value})} rows={3} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Ex: Olá! Sou o assistente virtual..."/>
           <span style={{fontSize:"11px",color:c.textMut}}>Enviada antes da IA, apenas na primeira mensagem</span>
         </div>
+ 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"16px"}}>
           <div><label style={lbl(c)}>Responder sem "?"</label><div style={{display:"flex",gap:"12px"}}><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="question" checked={form.answer_without_question} onChange={()=>setForm({...form,answer_without_question:true})} style={{accentColor:c.accent}}/>Sim</label><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="question" checked={!form.answer_without_question} onChange={()=>setForm({...form,answer_without_question:false})} style={{accentColor:c.accent}}/>Não</label></div></div>
           <div><label style={lbl(c)}>Responder admins</label><div style={{display:"flex",gap:"12px"}}><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="admins" checked={form.respond_admins} onChange={()=>setForm({...form,respond_admins:true})} style={{accentColor:c.accent}}/>Sim</label><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" name="admins" checked={!form.respond_admins} onChange={()=>setForm({...form,respond_admins:false})} style={{accentColor:c.accent}}/>Não</label></div></div>
         </div>
+ 
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Tipo</label><div style={{display:"flex",gap:"8px"}}>{[{id:"private",l:"Privado"},{id:"groups",l:"Grupos"},{id:"both",l:"Ambos"}].map(s=>(<button key={s.id} onClick={()=>setForm({...form,scope:s.id})} style={{padding:"8px 18px",borderRadius:"10px",border:`1px solid ${form.scope===s.id?c.accent:c.border}`,background:form.scope===s.id?c.accentSoft:c.bgInput,color:form.scope===s.id?c.accent:c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>{s.l}</button>))}</div></div>
+ 
+        {/* Intervalo digitável */}
+        <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Intervalo entre respostas (segundos)</label>
+          <input type="number" min="0" max="120" value={form.response_delay} onChange={e=>setForm({...form,response_delay:parseInt(e.target.value)||0})} placeholder="Ex: 5" style={{...inp(c),width:"200px"}}/>
+          <span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>Tempo de espera antes de enviar a resposta da IA (0 = imediato)</span>
+        </div>
+ 
+        {/* Horário de expediente */}
+        <div style={{background:c.bgInput,borderRadius:"14px",padding:"18px",border:`1px solid ${c.border}`,marginBottom:"16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+            <label style={{fontSize:"14px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px"}}><Clock size={16} color={c.accent}/>Horário de Expediente</label>
+            <div style={{display:"flex",gap:"8px"}}><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" checked={form.use_work_hours} onChange={()=>setForm({...form,use_work_hours:true})} style={{accentColor:c.accent}}/>Ativado</label><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="radio" checked={!form.use_work_hours} onChange={()=>setForm({...form,use_work_hours:false})} style={{accentColor:c.accent}}/>Desativado</label></div>
+          </div>
+ 
+          {form.use_work_hours&&<>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"14px"}}>
+              <div><label style={lbl(c)}>Início</label><input type="time" value={form.work_start_time||"09:00"} onChange={e=>setForm({...form,work_start_time:e.target.value})} style={inp(c)}/></div>
+              <div><label style={lbl(c)}>Fim</label><input type="time" value={form.work_end_time||"18:00"} onChange={e=>setForm({...form,work_end_time:e.target.value})} style={inp(c)}/></div>
+            </div>
+ 
+            <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Dias de funcionamento</label>
+              <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>{[{id:"1",l:"Seg"},{id:"2",l:"Ter"},{id:"3",l:"Qua"},{id:"4",l:"Qui"},{id:"5",l:"Sex"},{id:"6",l:"Sáb"},{id:"0",l:"Dom"}].map(d=>{
+                const days=form.work_days||["1","2","3","4","5"];
+                const active=days.includes(d.id);
+                return<button key={d.id} onClick={()=>{const newDays=active?days.filter(x=>x!==d.id):[...days,d.id];setForm({...form,work_days:newDays});}} style={{padding:"6px 14px",borderRadius:"8px",border:`1px solid ${active?c.accent:c.border}`,background:active?c.accentSoft:c.bgCard,color:active?c.accent:c.textMut,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>{d.l}</button>;
+              })}</div>
+            </div>
+ 
+            <div><label style={lbl(c)}>Mensagem fora do expediente</label>
+              <textarea value={form.out_of_hours_message||""} onChange={e=>setForm({...form,out_of_hours_message:e.target.value})} rows={3} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Ex: Nosso horário de atendimento é de segunda a sexta, das 9h às 18h. Retornaremos assim que possível!"/>
+              <span style={{fontSize:"11px",color:c.textMut}}>Enviada automaticamente quando alguém manda mensagem fora do expediente</span>
+            </div>
+          </>}
+        </div>
+ 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"20px"}}>
           <div><label style={lbl(c)}>Max Tokens</label><input type="number" value={form.max_tokens} onChange={e=>setForm({...form,max_tokens:parseInt(e.target.value)||1000})} style={inp(c)}/></div>
           <div><label style={lbl(c)}>Temperatura ({form.temperature})</label><input type="range" min="0" max="1" step="0.1" value={form.temperature} onChange={e=>setForm({...form,temperature:parseFloat(e.target.value)})} style={{width:"100%",accentColor:c.accent,marginTop:"10px"}}/><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:"10px",color:c.textMut}}>Preciso</span><span style={{fontSize:"10px",color:c.textMut}}>Criativo</span></div></div>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",gap:"10px"}}><button onClick={()=>setStep(2)} style={btnS(c)}>← Voltar</button><button onClick={save} style={btnP(c,false)}><CheckCircle size={14}/>{editId?"Salvar":"Criar Assistente"}</button></div>
       </>}
-    </div>}
- 
+		
     {/* Conversations */}
     {viewConvId&&<div style={{...card(c),marginBottom:"16px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
