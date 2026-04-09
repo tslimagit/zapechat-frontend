@@ -1039,7 +1039,6 @@ function ContactsPage(){
         </tr>)}
       </tbody></table></div>}
     </div>
-  </
 
 // ==========================================
 // NOVA SettingsPage - Substitua inteira no App.jsx
