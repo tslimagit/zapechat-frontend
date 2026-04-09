@@ -1521,11 +1521,6 @@ function AIAssistantPage(){
  
       {/* Step 1 */}
       {step===1&&<>
-        <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Plataforma</label>
-          <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>{providers.map(p=>(
-            <button key={p.id} onClick={()=>{setForm({...form,provider:p.id,model:p.models[0]?.id||"",api_key_id:""});}} style={{padding:"10px 18px",borderRadius:"10px",border:`1px solid ${form.provider===p.id?c.accent:c.border}`,background:form.provider===p.id?c.accentSoft:c.bgInput,color:form.provider===p.id?c.accent:c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>{p.label}</button>
-          ))}</div>
-        </div>
  
         <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Modelo</label>
           <select value={form.model} onChange={e=>setForm({...form,model:e.target.value})} style={inp(c)}>
