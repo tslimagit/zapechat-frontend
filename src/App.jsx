@@ -5,7 +5,7 @@ import {
   RefreshCw, Play, Pause, Hash, Globe, Phone, Image, FileText, Video, Mic, Calendar,
   Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight
 } from "lucide-react";
-import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi } from "./api";
+import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi, profileApi, Camera } from "./api";
 
 // ==================== THEME ====================
 const ThemeContext = createContext();
@@ -1592,7 +1592,7 @@ function MainContent({page,user,onToggleSidebar,onProfileUpdate}){
   const titles={dashboard:["Dashboard","Visão geral"],qrcode:["WhatsApp","Conecte seu WhatsApp"],send:["Enviar Mensagem","Texto e mídia"],mass:["Disparo em Massa","Campanhas"],groups:["Grupos","Gerencie grupos"],"group-events":["Monitor de Grupos","Entrada e saída"],reports:["Relatórios","Análises"],contacts:["Contatos","Sua lista"],admin:["Admin","Gerenciar clientes"],ai:["Assistente IA","Resposta automática com IA"],automations:["Automações","Webhooks de pagamento"],settings:["Configurações","Seu perfil"]};
   return(<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}><div style={{flex:1,background:c.bg,minHeight:"100vh"}}>
     <Header title={titles[page]?.[0]||""} subtitle={titles[page]?.[1]||""} user={user} onToggleSidebar={onToggleSidebar}/>
-    {page==="dashboard"&&<DashboardPage/>}{page==="qrcode"&&<QrCodePage/>}{page==="send"&&<SendMessagePage/>}{page==="mass"&&<MassSendPage/>}{page==="groups"&&<GroupsPage/>}{page==="group-events"&&<GroupEventsPage/>}{page==="reports"&&<ReportsPage/>}{page==="contacts"&&<ContactsPage/>}{page==="admin"&&<AdminPage/>}{page==="ai"&&<AIAssistantPage/>}{page==="automations"&&<AutomationsPage/>}{page==="settings"&&<SettingsPage user={user} onProfileUpdate={onProfileUpdate}/>}
+    {page==="dashboard"&&<DashboardPage/>}{page==="qrcode"&&<QrCodePage/>}{page==="send"&&<SendMessagePage/>}{page==="mass"&&<MassSendPage/>}{page==="groups"&&<GroupsPage/>}{page==="group-events"&&<GroupEventsPage/>}{page==="reports"&&<ReportsPage/>}{page==="contacts"&&<ContactsPage/>}{page==="admin"&&<AdminPage/>}{page==="ai"&&<AIAssistantPage/>}{page==="automations"&&<AutomationsPage/>}{page==="settings"&&<SettingsPage user={user} onProfileUpdate={(p)=>setUser(prev=>({...prev,...p}))}/>}
   </div></div>);
 }
 
