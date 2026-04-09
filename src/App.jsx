@@ -1609,7 +1609,7 @@ function App(){
   return(<ThemeProvider>
     <div style={{display:"flex",minHeight:"100vh",fontFamily:"'Segoe UI',-apple-system,sans-serif"}}>
       <Sidebar active={page} onNavigate={nav} collapsed={collapsed} user={user}/>
-      <MainContent page={page} user={user} onToggleSidebar={...} onProfileUpdate={(p)=>setUser(prev=>({...prev,...p}))}/>
+      <MainContent page={page} user={user} onToggleSidebar={()=>setCollapsed(!collapsed)} onProfileUpdate={(p)=>setUser(prev=>({...prev,...p}))}/>
     </div>
     <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}} *{box-sizing:border-box;margin:0;padding:0} body{margin:0} ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}`}</style>
   </ThemeProvider>);
