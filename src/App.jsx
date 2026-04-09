@@ -1038,12 +1038,6 @@ function ContactsPage(){
           </td>
         </tr>)}
       </tbody></table></div>}
-    </div>
-
-// ==========================================
-// NOVA SettingsPage - Substitua inteira no App.jsx
-// Importar profileApi no topo
-// ==========================================
  
 function SettingsPage({user,onProfileUpdate}){
   const{dark}=useTheme();const c=C(dark);
