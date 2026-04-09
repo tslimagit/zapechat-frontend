@@ -700,7 +700,7 @@ function GroupsPage(){
   // Mass send state
   const[massSelectedGroups,setMassSelectedGroups]=useState([]);const[massText,setMassText]=useState("");
   const[massMedia,setMassMedia]=useState(null);const[massInterval,setMassInterval]=useState("3");
-  const[massMentionAll,setMassMentionAll]=useState(false);const[massSending,setMassSending]=useState(false);
+  const[massSending,setMassSending]=useState(false);const[massScheduled,setMassScheduled]=useState("");
 
   // Manage state
   const[members,setMembers]=useState([]);const[loadingMembers,setLoadingMembers]=useState(false);
@@ -864,14 +864,21 @@ function GroupsPage(){
           <label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Anexar Mídia (opcional)</label>
           <MediaPicker selected={massMedia} onSelect={setMassMedia} onRemove={()=>setMassMedia(null)}/>
 
-          <div style={{display:"flex",gap:"16px",marginBottom:"14px",flexWrap:"wrap"}}>
-            <div><label style={lbl(c)}>Intervalo (seg)</label><input value={massInterval} onChange={e=>setMassInterval(e.target.value)} type="number" min="1" style={{...inp(c),width:"100px"}}/></div>
-            <label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer",marginTop:"20px"}}><input type="checkbox" checked={massMentionAll} onChange={e=>setMassMentionAll(e.target.checked)} style={{accentColor:c.accent}}/>Mencionar todos</label>
+		<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"14px",marginBottom:"14px",alignItems:"end"}}>
+            <div><label style={lbl(c)}>Intervalo (seg)</label><input value={massInterval} onChange={e=>setMassInterval(e.target.value)} type="number" min="1" style={inp(c)}/></div>
+            <div><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Calendar size={12}/>Agendar (opcional)</label><input value={massScheduled||""} onChange={e=>setMassScheduled(e.target.value)} type="datetime-local" style={inp(c)}/></div>
+            <label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer",paddingBottom:"12px"}}><input type="checkbox" checked={massMentionAll} onChange={e=>setMassMentionAll(e.target.checked)} style={{accentColor:c.accent}}/>Mencionar todos</label>
           </div>
 
-          <button onClick={massSendToGroups} disabled={massSending||massSelectedGroups.length===0||(!massText&&!massMedia)} style={btnP(c,massSending||massSelectedGroups.length===0||(!massText&&!massMedia))}>{massSending?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<Play size={14}/>}{massSending?"Enviando...":"Iniciar Disparo"}</button>
+          <button onClick={massSendToGroups} disabled={massSending||massSelectedGroups.length===0||(!massText&&!massMedia)} style={btnP(c,massSending||massSelectedGroups.length===0||(!massText&&!massMedia))}>{massSending?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:massScheduled?<Calendar size={14}/>:<Play size={14}/>}{massSending?"Enviando...":massScheduled?"Agendar Disparo":"Iniciar Disparo"}</button>
         </>}
 
+         {/* Mini histórico */}
+          <div style={{marginTop:"20px",paddingTop:"16px",borderTop:`1px solid ${c.border}`}}>
+            <h4 style={{margin:"0 0 10px",fontSize:"13px",fontWeight:"700",color:c.textMut}}>Últimos Disparos</h4>
+            <p style={{fontSize:"12px",color:c.textMut}}>Acesse a tela "Disparo em Massa" para ver o histórico completo com estatísticas.</p>
+          </div>
+		  
         {/* No group selected */}
         {!selected&&tab!=="create"&&tab!=="mass"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:c.textMut,textAlign:"center"}}><Users size={40} style={{marginBottom:"14px",opacity:0.3}}/><p style={{fontSize:"14px",margin:0}}>Selecione um grupo, crie ou dispare em massa</p></div>}
 
