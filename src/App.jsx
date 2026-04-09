@@ -527,9 +527,10 @@ function DashboardPage(){const{dark}=useTheme();const c=C(dark);const[stats,setS
 function SendMessagePage(){const{dark}=useTheme();const c=C(dark);const[number,setNumber]=useState("");const[message,setMessage]=useState("");const[delay,setDelay]=useState("1000");const[media,setMedia]=useState(null);const[sending,setSending]=useState(false);const[toast,setToast]=useState(null);const[showPreview,setShowPreview]=useState(false);const handleSend=async()=>{setShowPreview(false);setSending(true);try{if(media){if(media.type==='audio'){const b=media.url.includes('base64,')?media.url.split('base64,')[1]:media.url;await messagesApi.sendAudio({number,media:b,delay:parseInt(delay)});}else if(media.isUrl){await messagesApi.sendMedia({number,media:media.url,caption:message,mediaType:media.type,mimetype:'video/mp4',fileName:media.name||'video.mp4',delay:parseInt(delay)});}else{const b=media.url.includes('base64,')?media.url.split('base64,')[1]:media.url;await messagesApi.sendMedia({number,media:b,caption:message,mediaType:media.type,mimetype:media.file?.type||'image/png',fileName:media.name||'file',delay:parseInt(delay)});}}else{await messagesApi.sendText(number,message,{delay:parseInt(delay)});}setToast({msg:"Mensagem enviada!",type:"success"});setNumber("");setMessage("");setMedia(null);}catch(err){setToast({msg:err.response?.data?.error||"Falha ao enviar",type:"error"});}finally{setSending(false);}};const canSend=number&&(message||media);return(<div style={{padding:"24px",maxWidth:"700px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}{showPreview&&<PreviewModal number={number} text={message} media={media} onConfirm={handleSend} onCancel={()=>setShowPreview(false)} sending={sending}/>}<div style={card(c)}><div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}}><Send size={20} color={c.accent}/><h3 style={{margin:0,fontSize:"18px",fontWeight:"700",color:c.text}}>Enviar Mensagem</h3></div><p style={{margin:"0 0 22px",fontSize:"13px",color:c.textMut}}>Texto ou mídia via WhatsApp</p><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Número</label><input value={number} onChange={e=>setNumber(e.target.value)} placeholder="5511999887766" style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Mensagem</label><textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Digite..." rows={4} style={{...inp(c),resize:"vertical"}}/></div><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Anexar Mídia</label><MediaPicker selected={media} onSelect={setMedia} onRemove={()=>setMedia(null)}/><div style={{marginBottom:"20px"}}><label style={lbl(c)}>Delay (ms)</label><input value={delay} onChange={e=>setDelay(e.target.value)} type="number" style={{...inp(c),width:"140px"}}/></div><button onClick={()=>setShowPreview(true)} disabled={!canSend} style={btnP(c,!canSend)}><Eye size={16}/>Pré-visualizar e Enviar</button></div></div>);}
 
 // ==========================================
-// NOVA MassSendPage - Substitua a função MassSendPage inteira no App.jsx
+// NOVA MassSendPage v3 - Com tags e variáveis
+// Substitua a função MassSendPage inteira no App.jsx
 // ==========================================
- 
+
 function MassSendPage(){
   const{dark}=useTheme();const c=C(dark);
   const[numbers,setNumbers]=useState("");const[message,setMessage]=useState("");const[interval_,setInterval_]=useState("3");
@@ -537,67 +538,131 @@ function MassSendPage(){
   const[running,setRunning]=useState(false);const[toast,setToast]=useState(null);
   const[campaigns,setCampaigns]=useState([]);const[loading,setLoading]=useState(true);
   const[media,setMedia]=useState(null);
- 
-  useEffect(()=>{(async()=>{try{const{data}=await campaignsApi.list();setCampaigns(data.campaigns||[]);}catch(e){}finally{setLoading(false);}})();},[]);
- 
+
+  // Tags
+  const[tags,setTags]=useState([]);const[selectedTag,setSelectedTag]=useState("");
+  const[tagContacts,setTagContacts]=useState([]);const[loadingTag,setLoadingTag]=useState(false);
+  const[inputMode,setInputMode]=useState("manual"); // manual, tag
+
+  useEffect(()=>{(async()=>{try{const[cRes,tRes]=await Promise.all([campaignsApi.list(),contactsApi.tags()]);setCampaigns(cRes.data.campaigns||[]);setTags(tRes.data.tags||[]);}catch(e){}finally{setLoading(false);}})();},[]);
+
+  // Carregar contatos por tag
+  const loadByTag=async(tag)=>{
+    setSelectedTag(tag);if(!tag){setTagContacts([]);return;}
+    setLoadingTag(true);
+    try{const{data}=await contactsApi.byTag(tag);setTagContacts(data.contacts||[]);
+      // Preencher números automaticamente
+      setNumbers(data.contacts.map(ct=>ct.phone).join("\n"));
+    }catch(e){setToast({msg:"Erro ao carregar contatos",type:"error"});}finally{setLoadingTag(false);}
+  };
+
+  // Substituir variáveis por contato
+  const buildMessageForContact=(template,contact)=>{
+    let msg=template;
+    const fullName=contact.name||contact.contact_name||"Cliente";
+    const firstName=fullName.split(" ")[0];
+    msg=msg.replace(/\{nome\}/gi,fullName);
+    msg=msg.replace(/\{primeiro_nome\}/gi,firstName);
+    msg=msg.replace(/\{email\}/gi,contact.email||"");
+    msg=msg.replace(/\{telefone\}/gi,contact.phone||"");
+    return msg;
+  };
+
   const start=async()=>{
     const nums=numbers.split("\n").filter(n=>n.trim());
     if(!nums.length||!name)return;
     if(!message&&!media){setToast({msg:"Preencha a mensagem ou anexe uma mídia",type:"error"});return;}
     setRunning(true);
     try{
-      const p={name,message:message||'',recipients:nums.map(n=>({phone:n.trim()})),interval_ms:parseInt(interval_)*1000};
-      if(media){
-        p.media_url=media.url||media.preview||'';
-        p.media_type=media.type;
-      }
+      // Construir lista de destinatários com dados pra variáveis
+      const recipients=nums.map(phone=>{
+        const contact=tagContacts.find(ct=>ct.phone===phone.trim())||{phone:phone.trim()};
+        return{phone:phone.trim(),name:contact.name||null,email:contact.email||null};
+      });
+
+      const p={name,message:message||'',recipients,interval_ms:parseInt(interval_)*1000,use_variables:message.includes('{')};
+      if(media){p.media_url=media.url||media.preview||'';p.media_type=media.type;}
       if(scheduled)p.scheduled_at=scheduled;
+
       const{data:camp}=await campaignsApi.create(p);
       if(!scheduled){
-        // Passar mídia no start
         const startData={};
-        if(media&&!media.isUrl){
-          startData.media_base64=media.url;
-          startData.media_mimetype=media.file?.type||'image/png';
-          startData.media_filename=media.name||'file';
-        }
+        if(media&&!media.isUrl){startData.media_base64=media.url;startData.media_mimetype=media.file?.type||'image/png';startData.media_filename=media.name||'file';}
         await campaignsApi.start(camp.campaign.id,startData);
       }
       setToast({msg:scheduled?`Agendado!`:`Disparo iniciado! ${nums.length} msgs`,type:"success"});
-      setName("");setNumbers("");setMessage("");setScheduled("");setMedia(null);
+      setName("");setNumbers("");setMessage("");setScheduled("");setMedia(null);setSelectedTag("");setTagContacts([]);
       const{data:u}=await campaignsApi.list();setCampaigns(u.campaigns||[]);
     }catch(err){setToast({msg:err.response?.data?.error||"Falha",type:"error"});}finally{setRunning(false);}
   };
- 
+
   const stS=s=>({completed:{bg:c.okSoft,col:c.ok,l:"Concluída"},running:{bg:c.warnSoft,col:c.warn,l:"Enviando"},scheduled:{bg:c.infoSoft,col:c.info,l:"Agendada"},draft:{bg:c.bgInput,col:c.textMut,l:"Rascunho"},paused:{bg:c.warnSoft,col:c.warn,l:"Pausada"}}[s]||{bg:c.bgInput,col:c.textMut,l:s});
   const canStart=name&&numbers.trim()&&(message||media);
- 
+
+  const variables=["{nome}","{primeiro_nome}","{email}","{telefone}"];
+
   return(<div style={{padding:"24px",maxWidth:"900px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
     <div style={{...card(c),marginBottom:"20px"}}>
       <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}}><Mail size={20} color={c.violet}/><h3 style={{margin:0,fontSize:"18px",fontWeight:"700",color:c.text}}>Disparo em Massa</h3></div>
-      <p style={{margin:"0 0 20px",fontSize:"13px",color:c.textMut}}>Envie texto e/ou mídia para múltiplos contatos</p>
- 
+      <p style={{margin:"0 0 20px",fontSize:"13px",color:c.textMut}}>Envie texto e/ou mídia para múltiplos contatos com variáveis personalizadas</p>
+
       <div style={{background:c.warnSoft,border:`1px solid ${c.warn}33`,borderRadius:"12px",padding:"12px 16px",marginBottom:"20px",display:"flex",alignItems:"flex-start",gap:"10px",color:c.warn,fontSize:"12px"}}><AlertCircle size={16} style={{flexShrink:0,marginTop:"1px"}}/><span>Intervalo mínimo de 3 segundos recomendado.</span></div>
- 
+
       <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome da Campanha</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: Promoção Março" style={inp(c)}/></div>
- 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"16px"}}>
-        <div><label style={lbl(c)}>Números (um por linha)</label><textarea value={numbers} onChange={e=>setNumbers(e.target.value)} placeholder={"5511999887766\n5511988776655"} rows={6} style={{...inp(c),fontFamily:"monospace",fontSize:"13px",resize:"vertical"}}/><span style={{fontSize:"11px",color:c.textMut}}>{numbers.split("\n").filter(n=>n.trim()).length} contatos</span></div>
-        <div><label style={lbl(c)}>Mensagem {media?"(legenda)":""}</label><textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder={media?"Legenda da mídia (opcional)...":"Sua mensagem..."} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}}/></div>
+
+      {/* Modo de seleção: Manual ou Tag */}
+      <div style={{marginBottom:"16px"}}>
+        <label style={lbl(c)}>Destinatários</label>
+        <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+          <button onClick={()=>{setInputMode("manual");setSelectedTag("");setTagContacts([]);}} style={{padding:"8px 16px",borderRadius:"8px",border:"none",background:inputMode==="manual"?c.accent:c.bgInput,color:inputMode==="manual"?"white":c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>Digitar Números</button>
+          <button onClick={()=>setInputMode("tag")} style={{padding:"8px 16px",borderRadius:"8px",border:"none",background:inputMode==="tag"?c.accent:c.bgInput,color:inputMode==="tag"?"white":c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>Selecionar por Tag</button>
+        </div>
+
+        {inputMode==="tag"&&<>
+          <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"12px"}}>
+            {tags.length===0?<span style={{fontSize:"12px",color:c.textMut}}>Nenhuma tag criada. Crie tags na tela de Contatos.</span>:
+            tags.map(t=>(
+              <button key={t.id} onClick={()=>loadByTag(t.name)} style={{padding:"6px 14px",borderRadius:"8px",border:`1px solid ${selectedTag===t.name?t.color||c.accent:c.border}`,background:selectedTag===t.name?(t.color||c.accent)+"22":"transparent",color:selectedTag===t.name?t.color||c.accent:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"4px"}}><div style={{width:"8px",height:"8px",borderRadius:"50%",background:t.color||c.accent}}/>{t.name} ({t.contact_count||0})</button>
+            ))}
+          </div>
+          {loadingTag&&<p style={{fontSize:"12px",color:c.textMut}}>Carregando contatos...</p>}
+          {tagContacts.length>0&&<div style={{background:c.bgInput,borderRadius:"10px",padding:"10px 14px",marginBottom:"10px",border:`1px solid ${c.border}`}}>
+            <span style={{fontSize:"12px",color:c.ok,fontWeight:"600"}}>{tagContacts.length} contatos carregados da tag "{selectedTag}"</span>
+          </div>}
+        </>}
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px"}}>
+          <div><label style={{...lbl(c),fontSize:"11px"}}>Números {inputMode==="tag"?"(carregados da tag)":"(um por linha)"}</label><textarea value={numbers} onChange={e=>setNumbers(e.target.value)} placeholder={"5511999887766\n5511988776655"} rows={6} style={{...inp(c),fontFamily:"monospace",fontSize:"13px",resize:"vertical"}}/><span style={{fontSize:"11px",color:c.textMut}}>{numbers.split("\n").filter(n=>n.trim()).length} contatos</span></div>
+          <div>
+            <label style={{...lbl(c),fontSize:"11px"}}>Mensagem {media?"(legenda)":""}</label>
+            <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder={media?"Legenda da mídia (opcional)...":"Olá {primeiro_nome}! Sua mensagem aqui..."} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}}/>
+            <div style={{display:"flex",gap:"4px",marginTop:"6px",flexWrap:"wrap"}}>
+              {variables.map(v=><button key={v} onClick={()=>setMessage(prev=>prev+v)} style={{padding:"3px 8px",borderRadius:"6px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.accent,fontSize:"11px",fontWeight:"600",cursor:"pointer"}}>{v}</button>)}
+            </div>
+            <span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>Use variáveis pra personalizar cada mensagem</span>
+          </div>
+        </div>
       </div>
- 
-      {/* Media Picker */}
+
+      {/* Preview com variáveis */}
+      {message&&message.includes("{")&&<div style={{marginBottom:"16px"}}>
+        <label style={lbl(c)}>Pré-visualização</label>
+        <div style={{background:dark?"#005c4b":"#dcf8c6",borderRadius:"12px 12px 12px 4px",padding:"12px 14px",maxWidth:"350px"}}>
+          <p style={{margin:0,fontSize:"13px",color:dark?"#e9edef":"#111b21",whiteSpace:"pre-wrap"}}>{message.replace(/\{nome\}/gi,"João da Silva").replace(/\{primeiro_nome\}/gi,"João").replace(/\{email\}/gi,"joao@email.com").replace(/\{telefone\}/gi,"5511999887766")}</p>
+        </div>
+      </div>}
+
       <label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Anexar Mídia (opcional)</label>
       <MediaPicker selected={media} onSelect={setMedia} onRemove={()=>setMedia(null)}/>
- 
+
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"20px"}}>
         <div><label style={lbl(c)}>Intervalo (seg)</label><input value={interval_} onChange={e=>setInterval_(e.target.value)} type="number" min="1" style={inp(c)}/></div>
         <div><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Calendar size={12}/>Agendar (opcional)</label><input value={scheduled} onChange={e=>setScheduled(e.target.value)} type="datetime-local" style={inp(c)}/></div>
       </div>
- 
+
       <button onClick={start} disabled={running||!canStart} style={btnP(c,running||!canStart)}>{running?<RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/>:scheduled?<Calendar size={16}/>:<Play size={16}/>}{running?"Processando...":scheduled?"Agendar":"Iniciar Disparo"}</button>
     </div>
- 
+
     {campaigns.length>0&&<div style={card(c)}><h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico</h3><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Campanha","Tipo","Total","Enviadas","Falhas","Status"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}</tr></thead><tbody>{campaigns.map(cp=>{const st=stS(cp.status);return<tr key={cp.id}><td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{cp.name}</td><td style={{padding:"10px 12px",fontSize:"12px",color:c.textMut}}>{cp.media_type?cp.media_type:"texto"}</td><td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.total_recipients}</td><td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.sent_count}</td><td style={{padding:"10px 12px",fontSize:"13px",color:cp.failed_count>0?c.danger:c.textSec}}>{cp.failed_count}</td><td style={{padding:"10px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:st.bg,color:st.col}}>{st.l}</span></td></tr>;})}</tbody></table></div></div>}
   </div>);
 }
