@@ -94,11 +94,18 @@ export const contactsApi = {
   create: (data) => api.post('/contacts', data),
   update: (id, data) => api.put(`/contacts/${id}`, data),
   delete: (id) => api.delete(`/contacts/${id}`),
-  importCsv: (file) => {
+  importCsv: (file, tags) => {
     const fd = new FormData();
     fd.append('file', file);
+    if (tags) fd.append('tags', tags);
     return api.post('/contacts/import-csv', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
+  byTag: (tag) => api.get(`/contacts/by-tag/${tag}`),
+  bulkTag: (data) => api.post('/contacts/bulk-tag', data),
+  bulkRemoveTag: (data) => api.post('/contacts/bulk-remove-tag', data),
+  tags: () => api.get('/contacts/tags'),
+  createTag: (data) => api.post('/contacts/tags', data),
+  deleteTag: (name) => api.delete(`/contacts/tags/${name}`),
 };
 
 export const reportsApi = {
