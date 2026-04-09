@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi } from "./api";
 
-// ==================== THEME ====================
+// ==================== THEME =====================
 const ThemeContext = createContext();
 const useTheme = () => useContext(ThemeContext);
 function ThemeProvider({ children }) {
