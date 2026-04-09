@@ -700,7 +700,7 @@ function GroupsPage(){
   // Mass send state
   const[massSelectedGroups,setMassSelectedGroups]=useState([]);const[massText,setMassText]=useState("");
   const[massMedia,setMassMedia]=useState(null);const[massInterval,setMassInterval]=useState("3");
-  const[massSending,setMassSending]=useState(false);const[massScheduled,setMassScheduled]=useState("");
+  const[massMentionAll,setMassMentionAll]=useState(false);const[massSending,setMassSending]=useState(false);const[massScheduled,setMassScheduled]=useState("");
 
   // Manage state
   const[members,setMembers]=useState([]);const[loadingMembers,setLoadingMembers]=useState(false);
