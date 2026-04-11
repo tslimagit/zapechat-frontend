@@ -727,7 +727,7 @@ function GroupsPage(){
   const selectSpeed=(preset)=>{setSpeedPreset(preset);if(preset!=="custom")setSpeedConfig(speedPresets[preset]);};
 
   // Edit modal
-  const[editCampaign,setEditCampaign]=useState(null);const[editName,setEditName2]=useState("");const[editScheduled,setEditScheduled]=useState("");
+  const[editCampaign,setEditCampaign]=useState(null);const[editName2,setEditName2]=useState("");const[editScheduled,setEditScheduled]=useState("");
 
   // Manage state
   const[members,setMembers]=useState([]);const[loadingMembers,setLoadingMembers]=useState(false);
