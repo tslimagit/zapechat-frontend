@@ -232,7 +232,7 @@ function AutomationsPage(){
   };
   useEffect(()=>{load();},[]);
 
-  const loadSequence=async(id)=>{setLoadingSeq(true);try{const{data}=await automationsApi.getMessages(id);if(data.messages&&data.messages.length>0)setSeqMessages(data.messages.map(m=>({message_template:m.message_template,delay_minutes:m.delay_minutes||0})));else setSeqMessages([{message_template:form.message_template||"",delay_minutes:0}]);}catch(e){setSeqMessages([{message_template:form.message_template||"",delay_minutes:0}]);}finally{setLoadingSeq(false);}};
+  const loadSequence=async(id,fallbackMsg)=>{setLoadingSeq(true);try{const{data}=await automationsApi.getMessages(id);if(data.messages&&data.messages.length>0)setSeqMessages(data.messages.map(m=>({message_template:m.message_template,delay_minutes:m.delay_minutes||0})));else setSeqMessages([{message_template:fallbackMsg||"",delay_minutes:0}]);}catch(e){setSeqMessages([{message_template:fallbackMsg||"",delay_minutes:0}]);}finally{setLoadingSeq(false);}};
 
   const save=async()=>{
     // Validar: precisa ter nome e pelo menos uma mensagem (na sequência ou no form)
@@ -273,7 +273,7 @@ function AutomationsPage(){
   const startEdit=(auto)=>{
     setForm({name:auto.name,platform:auto.platform,event_type:auto.event_type,message_template:auto.message_template,support_phone:auto.support_phone||"",support_email:auto.support_email||""});
     setEditId(auto.id);setShowCreate(true);
-    loadSequence(auto.id);
+    loadSequence(auto.id,auto.message_template);
   };
 
   const useTemplate=(eventType)=>{
@@ -773,7 +773,7 @@ function GroupsPage(){
   const[massSelectedGroups,setMassSelectedGroups]=useState([]);const[massText,setMassText]=useState("");
   const[massMedia,setMassMedia]=useState(null);
   const[massMentionAll,setMassMentionAll]=useState(false);const[massSending,setMassSending]=useState(false);
-  const[massScheduled,setMassScheduled]=useState("");const[massCampaigns,setMassCampaigns]=useState([]);
+  const[massScheduled,setMassScheduled]=useState("");const[massCampaigns,setMassCampaigns]=useState([]);const[massCampaignName,setMassCampaignName]=useState("");
 
   // Speed config
   const[speedPreset,setSpeedPreset]=useState("normal");
@@ -826,7 +826,7 @@ function GroupsPage(){
       const avgInterval=Math.floor((speedConfig.minInterval+speedConfig.maxInterval)/2);
       if(massScheduled){
         const recipients=massSelectedGroups.map(jid=>({phone:jid,name:groups.find(g=>g.group_jid===jid)?.name||jid}));
-        const p={name:"Grupo: Disparo "+new Date().toLocaleDateString("pt-BR"),message:massText||'',recipients,interval_ms:avgInterval*1000,scheduled_at:massScheduled};
+        const p={name:"Grupo: "+(massCampaignName||"Disparo "+new Date().toLocaleDateString("pt-BR")),message:massText||'',recipients,interval_ms:avgInterval*1000,scheduled_at:massScheduled};
         if(massMedia){p.media_url=massMedia.url||'';p.media_type=massMedia.type;}
         await campaignsApi.create(p);
         setToast({msg:`Disparo agendado para ${new Date(massScheduled).toLocaleString("pt-BR")} em ${massSelectedGroups.length} grupos!`,type:"success"});
@@ -836,7 +836,7 @@ function GroupsPage(){
         await groupsApi.massSend(data);
         setToast({msg:`Disparo iniciado para ${massSelectedGroups.length} grupos!`,type:"success"});
       }
-      setMassText("");setMassMedia(null);setMassSelectedGroups([]);setMassScheduled("");load();
+      setMassText("");setMassMedia(null);setMassSelectedGroups([]);setMassScheduled("");setMassCampaignName("");load();
     }catch(e){setToast({msg:e.response?.data?.error||"Falha",type:"error"});}finally{setMassSending(false);}
   };
 
@@ -911,6 +911,7 @@ function GroupsPage(){
         {/* TAB: Mass Send */}
         {tab==="mass"&&!selected&&<>
           <h3 style={{margin:"0 0 16px",fontSize:"16px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px"}}><Mail size={18} color={c.violet}/>Disparo em Massa para Grupos</h3>
+			<div style={{marginBottom:"14px"}}><label style={lbl(c)}>Nome da Campanha</label><input value={massCampaignName} onChange={e=>setMassCampaignName(e.target.value)} placeholder="Ex: Promoção Abril" style={inp(c)}/></div>
 
           <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Selecionar Grupos ({massSelectedGroups.length}/{groups.length})</label>
             <button onClick={selectAllGroups} style={{...btnS(c),padding:"5px 10px",fontSize:"11px",marginBottom:"8px"}}>{massSelectedGroups.length===groups.length?"Desmarcar todos":"Selecionar todos"}</button>
