@@ -603,7 +603,8 @@ function MassSendPage(){
       <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"420px",width:"100%",border:`1px solid ${c.border}`}} onClick={e=>e.stopPropagation()}>
         <h3 style={{margin:"0 0 16px",fontSize:"17px",fontWeight:"700",color:c.text}}>Editar Campanha</h3>
         <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Nome</label><input value={editName} onChange={e=>setEditName(e.target.value)} style={inp(c)}/></div>
-        <div style={{marginBottom:"20px"}}><label style={lbl(c)}>Agendamento</label><input type="datetime-local" value={editScheduled} onChange={e=>setEditScheduled(e.target.value)} style={inp(c)}/></div>
+        <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Mensagem</label><textarea value={editMessage} onChange={e=>setEditMessage(e.target.value)} rows={4} style={{...inp(c),resize:"vertical"}}/></div>
+<div style={{marginBottom:"20px"}}><label style={lbl(c)}>Agendamento</label><input type="datetime-local" value={editScheduled} onChange={e=>setEditScheduled(e.target.value)} style={inp(c)}/></div>
         <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}><button onClick={()=>setEditCampaign(null)} style={btnS(c)}>Cancelar</button><button onClick={saveEdit} style={btnP(c,false)}>Salvar</button></div>
       </div>
     </div>}
@@ -727,7 +728,7 @@ function GroupsPage(){
   const selectSpeed=(preset)=>{setSpeedPreset(preset);if(preset!=="custom")setSpeedConfig(speedPresets[preset]);};
 
   // Edit modal
-  const[editCampaign,setEditCampaign]=useState(null);const[editName2,setEditName2]=useState("");const[editScheduled,setEditScheduled]=useState("");
+  const[editCampaign,setEditCampaign]=useState(null);const[editName2,setEditName2]=useState("");const[editScheduled,setEditScheduled]=useState("");const[editMessage,setEditMessage]=useState("");
 
   // Manage state
   const[members,setMembers]=useState([]);const[loadingMembers,setLoadingMembers]=useState(false);
@@ -782,7 +783,7 @@ function GroupsPage(){
   // Campaign actions
   const cancelCampaign=async(cp)=>{if(!confirm(`Cancelar "${cp.name}"?`))return;try{await campaignsApi.cancel(cp.id);setToast({msg:"Cancelado!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}};
   const deleteCampaign=async(cp)=>{if(!confirm(`Remover "${cp.name}"?`))return;try{await campaignsApi.delete(cp.id);setToast({msg:"Removido!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}};
-  const saveEditCampaign=async()=>{if(!editCampaign)return;try{await campaignsApi.update(editCampaign.id,{name:editName2,scheduled_at:editScheduled||null});setToast({msg:"Atualizado!",type:"success"});setEditCampaign(null);load();}catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}};
+  const saveEditCampaign=async()=>{if(!editCampaign)return;try{await campaignsApi.update(editCampaign.id,{name:editName2,message:editMessage,scheduled_at:editScheduled||null});setToast({msg:"Atualizado!",type:"success"});setEditCampaign(null);load();}catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}};
 
   const updateSubject=async()=>{if(!editName)return;try{await groupsApi.updateSubject(selected.group_jid,editName);setToast({msg:"Nome alterado!",type:"success"});load();}catch(e){setToast({msg:"Falha",type:"error"});}};
   const updateDesc=async()=>{try{await groupsApi.updateDescription(selected.group_jid,editDesc);setToast({msg:"Descrição alterada!",type:"success"});}catch(e){setToast({msg:"Falha",type:"error"});}};
@@ -896,7 +897,7 @@ function GroupsPage(){
                 <td style={{padding:"8px 10px"}}><span style={{fontSize:"10px",fontWeight:"600",padding:"2px 8px",borderRadius:"6px",background:st.bg,color:st.col}}>{st.l}</span></td>
                 <td style={{padding:"8px 10px",fontSize:"11px",color:c.textMut}}>{cp.created_at?new Date(cp.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</td>
                 <td style={{padding:"8px 10px",display:"flex",gap:"4px"}}>
-                  {cp.status==="scheduled"&&<><button onClick={()=>{setEditCampaign(cp);setEditName2(cp.name);setEditScheduled(cp.scheduled_at?new Date(cp.scheduled_at).toISOString().slice(0,16):"");}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}} title="Editar"><Edit size={14}/></button>
+                  {cp.status==="scheduled"&&<><button onClick={()=>{setEditCampaign(cp);setEditName2(cp.name);setEditScheduled(cp.scheduled_at?new Date(cp.scheduled_at).toISOString().slice(0,16):"");setEditMessage(cp.message||"");}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}} title="Editar"><Edit size={14}/></button>
                   <button onClick={()=>cancelCampaign(cp)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}} title="Cancelar"><X size={14}/></button></>}
                   {(cp.status==="completed"||cp.status==="canceled")&&<button onClick={()=>deleteCampaign(cp)} style={{background:"none",border:"none",cursor:"pointer",color:c.textMut,padding:"3px"}} title="Remover"><Trash2 size={14}/></button>}
                 </td>
