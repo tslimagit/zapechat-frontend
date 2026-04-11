@@ -527,13 +527,13 @@ function DashboardPage(){const{dark}=useTheme();const c=C(dark);const[stats,setS
 function SendMessagePage(){const{dark}=useTheme();const c=C(dark);const[number,setNumber]=useState("");const[message,setMessage]=useState("");const[delay,setDelay]=useState("1000");const[media,setMedia]=useState(null);const[sending,setSending]=useState(false);const[toast,setToast]=useState(null);const[showPreview,setShowPreview]=useState(false);const[scheduled,setScheduled]=useState("");const variables=["{nome}","{primeiro_nome}","{email}","{telefone}"];const handleSend=async()=>{setShowPreview(false);setSending(true);try{if(scheduled){const recipients=[{phone:number.trim(),name:"",email:""}];const p={name:"Envio Individual - "+number,message:message||'',recipients,interval_ms:1000,scheduled_at:scheduled};if(media){p.media_url=media.url||media.preview||'';p.media_type=media.type;}const{data:camp}=await campaignsApi.create(p);setToast({msg:`Mensagem agendada para ${new Date(scheduled).toLocaleString("pt-BR")}!`,type:"success"});}else{if(media){if(media.type==='audio'){const b=media.url.includes('base64,')?media.url.split('base64,')[1]:media.url;await messagesApi.sendAudio({number,media:b,delay:parseInt(delay)});}else if(media.isUrl){await messagesApi.sendMedia({number,media:media.url,caption:message,mediaType:media.type,mimetype:'video/mp4',fileName:media.name||'video.mp4',delay:parseInt(delay)});}else{const b=media.url.includes('base64,')?media.url.split('base64,')[1]:media.url;await messagesApi.sendMedia({number,media:b,caption:message,mediaType:media.type,mimetype:media.file?.type||'image/png',fileName:media.name||'file',delay:parseInt(delay)});}}else{await messagesApi.sendText(number,message,{delay:parseInt(delay)});}setToast({msg:"Mensagem enviada!",type:"success"});}setNumber("");setMessage("");setMedia(null);setScheduled("");}catch(err){setToast({msg:err.response?.data?.error||"Falha ao enviar",type:"error"});}finally{setSending(false);}};const canSend=number&&(message||media);return(<div style={{padding:"24px",maxWidth:"700px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}{showPreview&&<PreviewModal number={number} text={message} media={media} onConfirm={handleSend} onCancel={()=>setShowPreview(false)} sending={sending}/>}<div style={card(c)}><div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}}><Send size={20} color={c.accent}/><h3 style={{margin:0,fontSize:"18px",fontWeight:"700",color:c.text}}>Enviar Mensagem</h3></div><p style={{margin:"0 0 22px",fontSize:"13px",color:c.textMut}}>Texto ou mídia via WhatsApp</p><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Número</label><input value={number} onChange={e=>setNumber(e.target.value)} placeholder="5511999887766" style={inp(c)}/></div><div style={{marginBottom:"16px"}}><label style={lbl(c)}>Mensagem</label><textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Olá {primeiro_nome}! Como posso ajudar?" rows={4} style={{...inp(c),resize:"vertical"}}/><div style={{display:"flex",gap:"4px",marginTop:"6px",flexWrap:"wrap"}}>{variables.map(v=><button key={v} onClick={()=>setMessage(prev=>prev+v)} type="button" style={{padding:"3px 8px",borderRadius:"6px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.accent,fontSize:"11px",fontWeight:"600",cursor:"pointer"}}>{v}</button>)}</div></div><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Anexar Mídia</label><MediaPicker selected={media} onSelect={setMedia} onRemove={()=>setMedia(null)}/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"20px"}}><div><label style={lbl(c)}>Delay (ms)</label><input value={delay} onChange={e=>setDelay(e.target.value)} type="number" style={inp(c)}/></div><div><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Calendar size={12}/>Agendar (opcional)</label><input value={scheduled} onChange={e=>setScheduled(e.target.value)} type="datetime-local" style={inp(c)}/></div></div>{message&&message.includes("{")&&<div style={{marginBottom:"16px"}}><label style={lbl(c)}>Pré-visualização</label><div style={{background:dark?"#005c4b":"#dcf8c6",borderRadius:"12px 12px 12px 4px",padding:"12px 14px",maxWidth:"350px"}}><p style={{margin:0,fontSize:"13px",color:dark?"#e9edef":"#111b21",whiteSpace:"pre-wrap"}}>{message.replace(/\{nome\}/gi,"João da Silva").replace(/\{primeiro_nome\}/gi,"João").replace(/\{email\}/gi,"joao@email.com").replace(/\{telefone\}/gi,number||"5511999887766")}</p></div></div>}<button onClick={()=>setShowPreview(true)} disabled={!canSend} style={btnP(c,!canSend)}>{scheduled?<Calendar size={16}/>:<Eye size={16}/>}{scheduled?"Agendar Envio":"Pré-visualizar e Enviar"}</button></div></div>);}
 
 // ==========================================
-// NOVA MassSendPage v3 - Com tags e variáveis
+// NOVA MassSendPage v4
 // Substitua a função MassSendPage inteira no App.jsx
 // ==========================================
 
 function MassSendPage(){
   const{dark}=useTheme();const c=C(dark);
-  const[numbers,setNumbers]=useState("");const[message,setMessage]=useState("");const[interval_,setInterval_]=useState("3");
+  const[numbers,setNumbers]=useState("");const[message,setMessage]=useState("");
   const[name,setName]=useState("");const[scheduled,setScheduled]=useState("");
   const[running,setRunning]=useState(false);const[toast,setToast]=useState(null);
   const[campaigns,setCampaigns]=useState([]);const[loading,setLoading]=useState(true);
@@ -542,31 +542,31 @@ function MassSendPage(){
   // Tags
   const[tags,setTags]=useState([]);const[selectedTag,setSelectedTag]=useState("");
   const[tagContacts,setTagContacts]=useState([]);const[loadingTag,setLoadingTag]=useState(false);
-  const[inputMode,setInputMode]=useState("manual"); // manual, tag
+  const[inputMode,setInputMode]=useState("manual");
 
-  useEffect(()=>{(async()=>{try{const[cRes,tRes]=await Promise.all([campaignsApi.list(),contactsApi.tags()]);setCampaigns(cRes.data.campaigns||[]);setTags(tRes.data.tags||[]);}catch(e){}finally{setLoading(false);}})();},[]);
+  // Velocidade de envio
+  const[speedPreset,setSpeedPreset]=useState("normal");
+  const[speedConfig,setSpeedConfig]=useState({minInterval:40,maxInterval:60,batchSize:100,minBatchPause:20,maxBatchPause:30});
 
-  // Carregar contatos por tag
-  const loadByTag=async(tag)=>{
-    setSelectedTag(tag);if(!tag){setTagContacts([]);return;}
-    setLoadingTag(true);
-    try{const{data}=await contactsApi.byTag(tag);setTagContacts(data.contacts||[]);
-      // Preencher números automaticamente
-      setNumbers(data.contacts.map(ct=>ct.phone).join("\n"));
-    }catch(e){setToast({msg:"Erro ao carregar contatos",type:"error"});}finally{setLoadingTag(false);}
+  const speedPresets={
+    none:{label:"Nenhum",desc:"1 segundo",minInterval:1,maxInterval:1,batchSize:100,minBatchPause:1,maxBatchPause:1},
+    fast:{label:"Rápida",desc:"Entre 10s e 20s",minInterval:10,maxInterval:20,batchSize:100,minBatchPause:20,maxBatchPause:30},
+    normal:{label:"Normal",desc:"Entre 40s e 60s",minInterval:40,maxInterval:60,batchSize:100,minBatchPause:20,maxBatchPause:30},
+    slow:{label:"Lenta",desc:"Entre 60s e 120s",minInterval:60,maxInterval:120,batchSize:50,minBatchPause:30,maxBatchPause:60},
+    custom:{label:"Customizada",desc:"Defina os valores",minInterval:3,maxInterval:5,batchSize:100,minBatchPause:20,maxBatchPause:30},
   };
 
-  // Substituir variáveis por contato
-  const buildMessageForContact=(template,contact)=>{
-    let msg=template;
-    const fullName=contact.name||contact.contact_name||"Cliente";
-    const firstName=fullName.split(" ")[0];
-    msg=msg.replace(/\{nome\}/gi,fullName);
-    msg=msg.replace(/\{primeiro_nome\}/gi,firstName);
-    msg=msg.replace(/\{email\}/gi,contact.email||"");
-    msg=msg.replace(/\{telefone\}/gi,contact.phone||"");
-    return msg;
-  };
+  // Edit modal
+  const[editCampaign,setEditCampaign]=useState(null);const[editName,setEditName]=useState("");const[editScheduled,setEditScheduled]=useState("");
+
+  useEffect(()=>{(async()=>{try{const[cRes,tRes]=await Promise.all([campaignsApi.list(),contactsApi.tags()]);
+    // Filtrar: só campanhas que NÃO começam com "Grupo:"
+    setCampaigns((cRes.data.campaigns||[]).filter(cp=>!cp.name?.startsWith("Grupo:")));
+    setTags(tRes.data.tags||[]);}catch(e){}finally{setLoading(false);}})();},[]);
+
+  const loadByTag=async(tag)=>{setSelectedTag(tag);if(!tag){setTagContacts([]);return;}setLoadingTag(true);try{const{data}=await contactsApi.byTag(tag);setTagContacts(data.contacts||[]);setNumbers(data.contacts.map(ct=>ct.phone).join("\n"));}catch(e){setToast({msg:"Erro ao carregar contatos",type:"error"});}finally{setLoadingTag(false);}};
+
+  const selectSpeed=(preset)=>{setSpeedPreset(preset);if(preset!=="custom")setSpeedConfig(speedPresets[preset]);};
 
   const start=async()=>{
     const nums=numbers.split("\n").filter(n=>n.trim());
@@ -574,96 +574,107 @@ function MassSendPage(){
     if(!message&&!media){setToast({msg:"Preencha a mensagem ou anexe uma mídia",type:"error"});return;}
     setRunning(true);
     try{
-      // Construir lista de destinatários com dados pra variáveis
-      const recipients=nums.map(phone=>{
-        const contact=tagContacts.find(ct=>ct.phone===phone.trim())||{phone:phone.trim()};
-        return{phone:phone.trim(),name:contact.name||null,email:contact.email||null};
-      });
-
-      const p={name,message:message||'',recipients,interval_ms:parseInt(interval_)*1000,use_variables:message.includes('{')};
+      const recipients=nums.map(phone=>{const contact=tagContacts.find(ct=>ct.phone===phone.trim())||{phone:phone.trim()};return{phone:phone.trim(),name:contact.name||null,email:contact.email||null};});
+      // Calcular intervalo médio baseado na velocidade
+      const avgInterval=Math.floor((speedConfig.minInterval+speedConfig.maxInterval)/2);
+      const p={name,message:message||'',recipients,interval_ms:avgInterval*1000,use_variables:message.includes('{'),speed_config:speedConfig};
       if(media){p.media_url=media.url||media.preview||'';p.media_type=media.type;}
       if(scheduled)p.scheduled_at=scheduled;
-
       const{data:camp}=await campaignsApi.create(p);
-      if(!scheduled){
-        const startData={};
-        if(media&&!media.isUrl){startData.media_base64=media.url;startData.media_mimetype=media.file?.type||'image/png';startData.media_filename=media.name||'file';}
-        await campaignsApi.start(camp.campaign.id,startData);
-      }
+      if(!scheduled){const startData={};if(media&&!media.isUrl){startData.media_base64=media.url;startData.media_mimetype=media.file?.type||'image/png';startData.media_filename=media.name||'file';}await campaignsApi.start(camp.campaign.id,startData);}
       setToast({msg:scheduled?`Agendado!`:`Disparo iniciado! ${nums.length} msgs`,type:"success"});
       setName("");setNumbers("");setMessage("");setScheduled("");setMedia(null);setSelectedTag("");setTagContacts([]);
-      const{data:u}=await campaignsApi.list();setCampaigns(u.campaigns||[]);
+      const{data:u}=await campaignsApi.list();setCampaigns((u.campaigns||[]).filter(cp=>!cp.name?.startsWith("Grupo:")));
     }catch(err){setToast({msg:err.response?.data?.error||"Falha",type:"error"});}finally{setRunning(false);}
   };
 
-  const stS=s=>({completed:{bg:c.okSoft,col:c.ok,l:"Concluída"},running:{bg:c.warnSoft,col:c.warn,l:"Enviando"},scheduled:{bg:c.infoSoft,col:c.info,l:"Agendada"},draft:{bg:c.bgInput,col:c.textMut,l:"Rascunho"},paused:{bg:c.warnSoft,col:c.warn,l:"Pausada"}}[s]||{bg:c.bgInput,col:c.textMut,l:s});
-  const canStart=name&&numbers.trim()&&(message||media);
+  const cancelCampaign=async(cp)=>{if(!confirm(`Cancelar "${cp.name}"?`))return;try{await campaignsApi.cancel(cp.id);setToast({msg:"Campanha cancelada!",type:"success"});const{data}=await campaignsApi.list();setCampaigns((data.campaigns||[]).filter(c=>!c.name?.startsWith("Grupo:")));}catch(e){setToast({msg:"Erro",type:"error"});}};
+  const deleteCampaign=async(cp)=>{if(!confirm(`Remover "${cp.name}"?`))return;try{await campaignsApi.delete(cp.id);setToast({msg:"Removida!",type:"success"});const{data}=await campaignsApi.list();setCampaigns((data.campaigns||[]).filter(c=>!c.name?.startsWith("Grupo:")));}catch(e){setToast({msg:"Erro",type:"error"});}};
+  const saveEdit=async()=>{if(!editCampaign)return;try{await campaignsApi.update(editCampaign.id,{name:editName,scheduled_at:editScheduled||null});setToast({msg:"Atualizado!",type:"success"});setEditCampaign(null);const{data}=await campaignsApi.list();setCampaigns((data.campaigns||[]).filter(c=>!c.name?.startsWith("Grupo:")));}catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}};
 
+  const stS=s=>({completed:{bg:c.okSoft,col:c.ok,l:"Concluída"},running:{bg:c.warnSoft,col:c.warn,l:"Enviando"},scheduled:{bg:c.infoSoft,col:c.info,l:"Agendada"},draft:{bg:c.bgInput,col:c.textMut,l:"Rascunho"},paused:{bg:c.warnSoft,col:c.warn,l:"Pausada"},canceled:{bg:c.dangerSoft,col:c.danger,l:"Cancelada"}}[s]||{bg:c.bgInput,col:c.textMut,l:s});
+  const canStart=name&&numbers.trim()&&(message||media);
   const variables=["{nome}","{primeiro_nome}","{email}","{telefone}"];
 
   return(<div style={{padding:"24px",maxWidth:"900px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
+
+    {/* Edit Modal */}
+    {editCampaign&&<div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={()=>setEditCampaign(null)}>
+      <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"420px",width:"100%",border:`1px solid ${c.border}`}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{margin:"0 0 16px",fontSize:"17px",fontWeight:"700",color:c.text}}>Editar Campanha</h3>
+        <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Nome</label><input value={editName} onChange={e=>setEditName(e.target.value)} style={inp(c)}/></div>
+        <div style={{marginBottom:"20px"}}><label style={lbl(c)}>Agendamento</label><input type="datetime-local" value={editScheduled} onChange={e=>setEditScheduled(e.target.value)} style={inp(c)}/></div>
+        <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}><button onClick={()=>setEditCampaign(null)} style={btnS(c)}>Cancelar</button><button onClick={saveEdit} style={btnP(c,false)}>Salvar</button></div>
+      </div>
+    </div>}
+
     <div style={{...card(c),marginBottom:"20px"}}>
       <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}}><Mail size={20} color={c.violet}/><h3 style={{margin:0,fontSize:"18px",fontWeight:"700",color:c.text}}>Disparo em Massa</h3></div>
       <p style={{margin:"0 0 20px",fontSize:"13px",color:c.textMut}}>Envie texto e/ou mídia para múltiplos contatos com variáveis personalizadas</p>
 
-      <div style={{background:c.warnSoft,border:`1px solid ${c.warn}33`,borderRadius:"12px",padding:"12px 16px",marginBottom:"20px",display:"flex",alignItems:"flex-start",gap:"10px",color:c.warn,fontSize:"12px"}}><AlertCircle size={16} style={{flexShrink:0,marginTop:"1px"}}/><span>Intervalo mínimo de 3 segundos recomendado.</span></div>
-
       <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome da Campanha</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: Promoção Março" style={inp(c)}/></div>
 
-      {/* Modo de seleção: Manual ou Tag */}
+      {/* Destinatários */}
       <div style={{marginBottom:"16px"}}>
         <label style={lbl(c)}>Destinatários</label>
         <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
           <button onClick={()=>{setInputMode("manual");setSelectedTag("");setTagContacts([]);}} style={{padding:"8px 16px",borderRadius:"8px",border:"none",background:inputMode==="manual"?c.accent:c.bgInput,color:inputMode==="manual"?"white":c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>Digitar Números</button>
           <button onClick={()=>setInputMode("tag")} style={{padding:"8px 16px",borderRadius:"8px",border:"none",background:inputMode==="tag"?c.accent:c.bgInput,color:inputMode==="tag"?"white":c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>Selecionar por Tag</button>
         </div>
-
-        {inputMode==="tag"&&<>
-          <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"12px"}}>
-            {tags.length===0?<span style={{fontSize:"12px",color:c.textMut}}>Nenhuma tag criada. Crie tags na tela de Contatos.</span>:
-            tags.map(t=>(
-              <button key={t.id} onClick={()=>loadByTag(t.name)} style={{padding:"6px 14px",borderRadius:"8px",border:`1px solid ${selectedTag===t.name?t.color||c.accent:c.border}`,background:selectedTag===t.name?(t.color||c.accent)+"22":"transparent",color:selectedTag===t.name?t.color||c.accent:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"4px"}}><div style={{width:"8px",height:"8px",borderRadius:"50%",background:t.color||c.accent}}/>{t.name} ({t.contact_count||0})</button>
-            ))}
-          </div>
-          {loadingTag&&<p style={{fontSize:"12px",color:c.textMut}}>Carregando contatos...</p>}
-          {tagContacts.length>0&&<div style={{background:c.bgInput,borderRadius:"10px",padding:"10px 14px",marginBottom:"10px",border:`1px solid ${c.border}`}}>
-            <span style={{fontSize:"12px",color:c.ok,fontWeight:"600"}}>{tagContacts.length} contatos carregados da tag "{selectedTag}"</span>
-          </div>}
-        </>}
-
+        {inputMode==="tag"&&<><div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"12px"}}>{tags.length===0?<span style={{fontSize:"12px",color:c.textMut}}>Nenhuma tag criada.</span>:tags.map(t=>(<button key={t.id} onClick={()=>loadByTag(t.name)} style={{padding:"6px 14px",borderRadius:"8px",border:`1px solid ${selectedTag===t.name?t.color||c.accent:c.border}`,background:selectedTag===t.name?(t.color||c.accent)+"22":"transparent",color:selectedTag===t.name?t.color||c.accent:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"4px"}}><div style={{width:"8px",height:"8px",borderRadius:"50%",background:t.color||c.accent}}/>{t.name} ({t.contact_count||0})</button>))}</div>{loadingTag&&<p style={{fontSize:"12px",color:c.textMut}}>Carregando...</p>}{tagContacts.length>0&&<div style={{background:c.bgInput,borderRadius:"10px",padding:"10px 14px",marginBottom:"10px",border:`1px solid ${c.border}`}}><span style={{fontSize:"12px",color:c.ok,fontWeight:"600"}}>{tagContacts.length} contatos carregados</span></div>}</>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px"}}>
-          <div><label style={{...lbl(c),fontSize:"11px"}}>Números {inputMode==="tag"?"(carregados da tag)":"(um por linha)"}</label><textarea value={numbers} onChange={e=>setNumbers(e.target.value)} placeholder={"5511999887766\n5511988776655"} rows={6} style={{...inp(c),fontFamily:"monospace",fontSize:"13px",resize:"vertical"}}/><span style={{fontSize:"11px",color:c.textMut}}>{numbers.split("\n").filter(n=>n.trim()).length} contatos</span></div>
-          <div>
-            <label style={{...lbl(c),fontSize:"11px"}}>Mensagem {media?"(legenda)":""}</label>
-            <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder={media?"Legenda da mídia (opcional)...":"Olá {primeiro_nome}! Sua mensagem aqui..."} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}}/>
-            <div style={{display:"flex",gap:"4px",marginTop:"6px",flexWrap:"wrap"}}>
-              {variables.map(v=><button key={v} onClick={()=>setMessage(prev=>prev+v)} style={{padding:"3px 8px",borderRadius:"6px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.accent,fontSize:"11px",fontWeight:"600",cursor:"pointer"}}>{v}</button>)}
-            </div>
-            <span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>Use variáveis pra personalizar cada mensagem</span>
-          </div>
+          <div><label style={{...lbl(c),fontSize:"11px"}}>Números {inputMode==="tag"?"(carregados)":"(um por linha)"}</label><textarea value={numbers} onChange={e=>setNumbers(e.target.value)} placeholder={"5511999887766\n5511988776655"} rows={6} style={{...inp(c),fontFamily:"monospace",fontSize:"13px",resize:"vertical"}}/><span style={{fontSize:"11px",color:c.textMut}}>{numbers.split("\n").filter(n=>n.trim()).length} contatos</span></div>
+          <div><label style={{...lbl(c),fontSize:"11px"}}>Mensagem {media?"(legenda)":""}</label><textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder={media?"Legenda...":"Olá {primeiro_nome}! ..."} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}}/><div style={{display:"flex",gap:"4px",marginTop:"6px",flexWrap:"wrap"}}>{variables.map(v=><button key={v} onClick={()=>setMessage(prev=>prev+v)} style={{padding:"3px 8px",borderRadius:"6px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.accent,fontSize:"11px",fontWeight:"600",cursor:"pointer"}}>{v}</button>)}</div></div>
         </div>
       </div>
 
-      {/* Preview com variáveis */}
-      {message&&message.includes("{")&&<div style={{marginBottom:"16px"}}>
-        <label style={lbl(c)}>Pré-visualização</label>
-        <div style={{background:dark?"#005c4b":"#dcf8c6",borderRadius:"12px 12px 12px 4px",padding:"12px 14px",maxWidth:"350px"}}>
-          <p style={{margin:0,fontSize:"13px",color:dark?"#e9edef":"#111b21",whiteSpace:"pre-wrap"}}>{message.replace(/\{nome\}/gi,"João da Silva").replace(/\{primeiro_nome\}/gi,"João").replace(/\{email\}/gi,"joao@email.com").replace(/\{telefone\}/gi,"5511999887766")}</p>
-        </div>
-      </div>}
+      {/* Preview */}
+      {message&&message.includes("{")&&<div style={{marginBottom:"16px"}}><label style={lbl(c)}>Pré-visualização</label><div style={{background:dark?"#005c4b":"#dcf8c6",borderRadius:"12px 12px 12px 4px",padding:"12px 14px",maxWidth:"350px"}}><p style={{margin:0,fontSize:"13px",color:dark?"#e9edef":"#111b21",whiteSpace:"pre-wrap"}}>{message.replace(/\{nome\}/gi,"João da Silva").replace(/\{primeiro_nome\}/gi,"João").replace(/\{email\}/gi,"joao@email.com").replace(/\{telefone\}/gi,"5511999887766")}</p></div></div>}
 
       <label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Anexar Mídia (opcional)</label>
       <MediaPicker selected={media} onSelect={setMedia} onRemove={()=>setMedia(null)}/>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"20px"}}>
-        <div><label style={lbl(c)}>Intervalo (seg)</label><input value={interval_} onChange={e=>setInterval_(e.target.value)} type="number" min="1" style={inp(c)}/></div>
-        <div><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Calendar size={12}/>Agendar (opcional)</label><input value={scheduled} onChange={e=>setScheduled(e.target.value)} type="datetime-local" style={inp(c)}/></div>
+      {/* Velocidade de envio */}
+      <div style={{background:c.bgInput,borderRadius:"14px",padding:"18px",border:`1px solid ${c.border}`,marginBottom:"16px"}}>
+        <label style={{fontSize:"14px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}><Zap size={16} color={c.accent}/>Velocidade de envio</label>
+        <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"14px"}}>
+          {Object.entries(speedPresets).map(([key,preset])=>(
+            <button key={key} onClick={()=>selectSpeed(key)} style={{padding:"10px 16px",borderRadius:"10px",border:`1px solid ${speedPreset===key?c.accent:c.border}`,background:speedPreset===key?c.accentSoft:c.bgCard,color:speedPreset===key?c.accent:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",textAlign:"left"}}>
+              <div>{preset.label}</div>
+              <div style={{fontSize:"10px",color:c.textMut,marginTop:"2px"}}>{preset.desc}</div>
+            </button>
+          ))}
+        </div>
+        {speedPreset==="custom"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px"}}>
+          <div><label style={lbl(c)}>Mínimo (seg)</label><input type="number" value={speedConfig.minInterval} onChange={e=>setSpeedConfig({...speedConfig,minInterval:parseInt(e.target.value)||1})} style={inp(c)}/></div>
+          <div><label style={lbl(c)}>Máximo (seg)</label><input type="number" value={speedConfig.maxInterval} onChange={e=>setSpeedConfig({...speedConfig,maxInterval:parseInt(e.target.value)||1})} style={inp(c)}/></div>
+          <div><label style={lbl(c)}>Tamanho do pacote</label><input type="number" value={speedConfig.batchSize} onChange={e=>setSpeedConfig({...speedConfig,batchSize:parseInt(e.target.value)||10})} style={inp(c)}/></div>
+          <div><label style={lbl(c)}>Pausa entre pacotes (min-max min)</label>
+            <div style={{display:"flex",gap:"8px"}}><input type="number" value={speedConfig.minBatchPause} onChange={e=>setSpeedConfig({...speedConfig,minBatchPause:parseInt(e.target.value)||1})} placeholder="Min" style={{...inp(c),width:"50%"}}/><input type="number" value={speedConfig.maxBatchPause} onChange={e=>setSpeedConfig({...speedConfig,maxBatchPause:parseInt(e.target.value)||1})} placeholder="Max" style={{...inp(c),width:"50%"}}/></div>
+          </div>
+        </div>}
       </div>
+
+      {/* Agendar */}
+      <div style={{marginBottom:"20px"}}><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Calendar size={12}/>Agendar (opcional)</label><input value={scheduled} onChange={e=>setScheduled(e.target.value)} type="datetime-local" style={{...inp(c),maxWidth:"300px"}}/></div>
 
       <button onClick={start} disabled={running||!canStart} style={btnP(c,running||!canStart)}>{running?<RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/>:scheduled?<Calendar size={16}/>:<Play size={16}/>}{running?"Processando...":scheduled?"Agendar":"Iniciar Disparo"}</button>
     </div>
 
-    {campaigns.length>0&&<div style={card(c)}><h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico</h3><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Campanha","Tipo","Total","Enviadas","Falhas","Status"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}</tr></thead><tbody>{campaigns.map(cp=>{const st=stS(cp.status);return<tr key={cp.id}><td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{cp.name}</td><td style={{padding:"10px 12px",fontSize:"12px",color:c.textMut}}>{cp.media_type?cp.media_type:"texto"}</td><td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.total_recipients}</td><td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.sent_count}</td><td style={{padding:"10px 12px",fontSize:"13px",color:cp.failed_count>0?c.danger:c.textSec}}>{cp.failed_count}</td><td style={{padding:"10px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:st.bg,color:st.col}}>{st.l}</span></td></tr>;})}</tbody></table></div></div>}
+    {/* Histórico */}
+    {campaigns.length>0&&<div style={card(c)}><h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico de Disparos</h3><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Campanha","Total","Enviadas","Falhas","Status","Data","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}</tr></thead><tbody>{campaigns.map(cp=>{const st=stS(cp.status);return<tr key={cp.id}>
+      <td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{cp.name}</td>
+      <td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.total_recipients}</td>
+      <td style={{padding:"10px 12px",fontSize:"13px",color:c.ok}}>{cp.sent_count}</td>
+      <td style={{padding:"10px 12px",fontSize:"13px",color:cp.failed_count>0?c.danger:c.textMut}}>{cp.failed_count}</td>
+      <td style={{padding:"10px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:st.bg,color:st.col}}>{st.l}</span></td>
+      <td style={{padding:"10px 12px",fontSize:"12px",color:c.textMut}}>{cp.created_at?new Date(cp.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</td>
+      <td style={{padding:"10px 12px",display:"flex",gap:"4px"}}>
+        {cp.status==="scheduled"&&<><button onClick={()=>{setEditCampaign(cp);setEditName(cp.name);setEditScheduled(cp.scheduled_at?new Date(cp.scheduled_at).toISOString().slice(0,16):"");}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}} title="Editar"><Edit size={14}/></button>
+        <button onClick={()=>cancelCampaign(cp)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}} title="Cancelar"><X size={14}/></button></>}
+        {(cp.status==="completed"||cp.status==="canceled")&&<button onClick={()=>deleteCampaign(cp)} style={{background:"none",border:"none",cursor:"pointer",color:c.textMut,padding:"3px"}} title="Remover"><Trash2 size={14}/></button>}
+      </td>
+    </tr>;})}</tbody></table></div></div>}
   </div>);
 }
 
