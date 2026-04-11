@@ -204,6 +204,8 @@ function AutomationsPage(){
   const[showCreate,setShowCreate]=useState(false);const[creating,setCreating]=useState(false);
   const[tab,setTab]=useState("list"); // list, logs
   const[editId,setEditId]=useState(null);
+  const[seqMessages,setSeqMessages]=useState([{message_template:"",delay_minutes:0}]);
+  const[loadingSeq,setLoadingSeq]=useState(false);
  
   // Form state
   const[form,setForm]=useState({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});
