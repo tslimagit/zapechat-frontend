@@ -141,6 +141,9 @@ export const automationsApi = {
   update: (id, data) => api.put(`/automations/${id}`, data),
   delete: (id) => api.delete(`/automations/${id}`),
   logs: (params = {}) => api.get('/automations/logs', { params }),
+  getMessages: (id) => api.get(`/automations/${id}/messages`),
+  saveMessages: (id, messages) => api.post(`/automations/${id}/messages`, { messages }),
+  getQueue: (id) => api.get(`/automations/${id}/queue`),
 };
 
 // ==========================================
