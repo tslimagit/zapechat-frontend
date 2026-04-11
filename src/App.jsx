@@ -679,7 +679,7 @@ function MassSendPage(){
 }
 
 // ==========================================
-// NOVA GroupsPage COMPLETA v2 - Substitua a função GroupsPage inteira no App.jsx
+// NOVA GroupsPage COMPLETA v3 - Substitua a função GroupsPage inteira no App.jsx
 // Inclui: mídia, criação múltipla, disparo em massa para grupos
 // ==========================================
 
@@ -705,13 +705,29 @@ function GroupsPage(){
   // Create group state
   const[newGroupName,setNewGroupName]=useState("");const[newGroupDesc,setNewGroupDesc]=useState("");
   const[newGroupParticipants,setNewGroupParticipants]=useState("");const[creating,setCreating]=useState(false);
-  const[createMode,setCreateMode]=useState("single"); // single, multiple
+  const[createMode,setCreateMode]=useState("single");
   const[multipleGroups,setMultipleGroups]=useState([{subject:"",participants:""}]);
 
   // Mass send state
   const[massSelectedGroups,setMassSelectedGroups]=useState([]);const[massText,setMassText]=useState("");
-  const[massMedia,setMassMedia]=useState(null);const[massInterval,setMassInterval]=useState("3");
-  const[massMentionAll,setMassMentionAll]=useState(false);const[massSending,setMassSending]=useState(false);const[massScheduled,setMassScheduled]=useState("");const[massCampaigns,setMassCampaigns]=useState([]);
+  const[massMedia,setMassMedia]=useState(null);
+  const[massMentionAll,setMassMentionAll]=useState(false);const[massSending,setMassSending]=useState(false);
+  const[massScheduled,setMassScheduled]=useState("");const[massCampaigns,setMassCampaigns]=useState([]);
+
+  // Speed config
+  const[speedPreset,setSpeedPreset]=useState("normal");
+  const[speedConfig,setSpeedConfig]=useState({minInterval:40,maxInterval:60,batchSize:100,minBatchPause:20,maxBatchPause:30});
+  const speedPresets={
+    none:{label:"Nenhum",desc:"1 segundo",minInterval:1,maxInterval:1,batchSize:100,minBatchPause:1,maxBatchPause:1},
+    fast:{label:"Rápida",desc:"Entre 10s e 20s",minInterval:10,maxInterval:20,batchSize:100,minBatchPause:20,maxBatchPause:30},
+    normal:{label:"Normal",desc:"Entre 40s e 60s",minInterval:40,maxInterval:60,batchSize:100,minBatchPause:20,maxBatchPause:30},
+    slow:{label:"Lenta",desc:"Entre 60s e 120s",minInterval:60,maxInterval:120,batchSize:50,minBatchPause:30,maxBatchPause:60},
+    custom:{label:"Customizada",desc:"Defina os valores",minInterval:3,maxInterval:5,batchSize:100,minBatchPause:20,maxBatchPause:30},
+  };
+  const selectSpeed=(preset)=>{setSpeedPreset(preset);if(preset!=="custom")setSpeedConfig(speedPresets[preset]);};
+
+  // Edit modal
+  const[editCampaign,setEditCampaign]=useState(null);const[editName,setEditName2]=useState("");const[editScheduled,setEditScheduled]=useState("");
 
   // Manage state
   const[members,setMembers]=useState([]);const[loadingMembers,setLoadingMembers]=useState(false);
@@ -723,83 +739,38 @@ function GroupsPage(){
   useEffect(()=>{load();},[]);
 
   const loadMembers=async(jid)=>{setLoadingMembers(true);try{const{data}=await groupsApi.members(jid);setMembers(Array.isArray(data.members)?data.members:data.members?.participants||[]);}catch(e){setMembers([]);}finally{setLoadingMembers(false);}};
-
   const selectGroup=(g)=>{setSelected(g);setTab("send");setEditName(g.name||"");setEditDesc(g.description||"");setMsgText("");setMentionAll(false);setMentionNumbers("");setInviteLink("");setGroupMedia(null);};
 
-  // ===== SEND TEXT + MEDIA =====
-  const sendToGroup=async()=>{
-    if(!selected||(!msgText&&!groupMedia))return;setSending(true);
-    try{
-      if(groupMedia){
-        await groupsApi.sendMedia(selected.group_jid,{
-          media:groupMedia.isUrl?groupMedia.url:(groupMedia.url||''),
-          mediaType:groupMedia.type,
-          mimetype:groupMedia.file?.type||'image/png',
-          fileName:groupMedia.name||'file',
-          caption:msgText||'',
-        });
-      }else{
-        const opts={delay:1000};
-        if(mentionAll)opts.mentionsEveryOne=true;
-        if(mentionNumbers.trim())opts.mentioned=mentionNumbers.split("\n").filter(n=>n.trim()).map(n=>n.trim());
-        await groupsApi.send(selected.group_jid,msgText,opts);
-      }
-      setToast({msg:"Enviada!",type:"success"});setMsgText("");setMentionAll(false);setMentionNumbers("");setGroupMedia(null);
-    }catch(e){setToast({msg:e.response?.data?.error||"Falha",type:"error"});}finally{setSending(false);}
-  };
+  const sendToGroup=async()=>{if(!selected||(!msgText&&!groupMedia))return;setSending(true);try{if(groupMedia){await groupsApi.sendMedia(selected.group_jid,{media:groupMedia.isUrl?groupMedia.url:(groupMedia.url||''),mediaType:groupMedia.type,mimetype:groupMedia.file?.type||'image/png',fileName:groupMedia.name||'file',caption:msgText||''});}else{const opts={delay:1000};if(mentionAll)opts.mentionsEveryOne=true;if(mentionNumbers.trim())opts.mentioned=mentionNumbers.split("\n").filter(n=>n.trim()).map(n=>n.trim());await groupsApi.send(selected.group_jid,msgText,opts);}setToast({msg:"Enviada!",type:"success"});setMsgText("");setMentionAll(false);setMentionNumbers("");setGroupMedia(null);}catch(e){setToast({msg:e.response?.data?.error||"Falha",type:"error"});}finally{setSending(false);}};
 
-  // ===== SEND POLL =====
   const sendPoll=async()=>{const opts=pollOptions.filter(o=>o.trim());if(!selected||!pollQuestion||opts.length<2)return;setSendingPoll(true);try{await groupsApi.sendPoll(selected.group_jid,{name:pollQuestion,values:opts,selectableCount:pollMulti?opts.length:1});setToast({msg:"Enquete enviada!",type:"success"});setPollQuestion("");setPollOptions(["","",""]);setPollMulti(false);}catch(e){setToast({msg:e.response?.data?.error||"Falha",type:"error"});}finally{setSendingPoll(false);}};
   const addPollOption=()=>setPollOptions([...pollOptions,""]);
   const removePollOption=(i)=>setPollOptions(pollOptions.filter((_,idx)=>idx!==i));
   const updatePollOption=(i,v)=>{const n=[...pollOptions];n[i]=v;setPollOptions(n);};
 
-  // ===== SEND CONTACT =====
   const sendContact=async()=>{if(!selected||!contactName||!contactPhone)return;setSendingContact(true);try{await groupsApi.sendContact(selected.group_jid,{fullName:contactName,phoneNumber:contactPhone,organization:contactOrg});setToast({msg:"Contato enviado!",type:"success"});setContactName("");setContactPhone("");setContactOrg("");}catch(e){setToast({msg:e.response?.data?.error||"Falha",type:"error"});}finally{setSendingContact(false);}};
 
-  // ===== CREATE GROUP =====
-  const createGroup=async()=>{
-    if(createMode==="multiple"){
-      const validGroups=multipleGroups.filter(g=>g.subject&&g.participants.trim());
-      if(validGroups.length===0){setToast({msg:"Preencha pelo menos 1 grupo",type:"error"});return;}
-      setCreating(true);
-      try{
-        const groupList=validGroups.map(g=>({subject:g.subject,participants:g.participants.split("\n").filter(n=>n.trim()).map(n=>n.trim())}));
-        const{data}=await groupsApi.createMultiple({groups:groupList});
-        const ok=data.results.filter(r=>r.success).length;
-        const fail=data.results.filter(r=>!r.success).length;
-        setToast({msg:`${ok} grupo(s) criado(s)${fail>0?`, ${fail} falha(s)`:""}`  ,type:ok>0?"success":"error"});
-        setMultipleGroups([{subject:"",participants:""}]);
-        await sync();
-      }catch(e){setToast({msg:"Falha ao criar grupos",type:"error"});}finally{setCreating(false);}
-    }else{
-      const parts=newGroupParticipants.split("\n").filter(n=>n.trim()).map(n=>n.trim());
-      if(!newGroupName||parts.length<1)return;setCreating(true);
-      try{await groupsApi.create({subject:newGroupName,description:newGroupDesc,participants:parts});setToast({msg:"Grupo criado!",type:"success"});setNewGroupName("");setNewGroupDesc("");setNewGroupParticipants("");await sync();}catch(e){setToast({msg:e.response?.data?.error||"Falha",type:"error"});}finally{setCreating(false);}
-    }
-  };
-
+  const createGroup=async()=>{if(createMode==="multiple"){const validGroups=multipleGroups.filter(g=>g.subject&&g.participants.trim());if(validGroups.length===0){setToast({msg:"Preencha pelo menos 1 grupo",type:"error"});return;}setCreating(true);try{const groupList=validGroups.map(g=>({subject:g.subject,participants:g.participants.split("\n").filter(n=>n.trim()).map(n=>n.trim())}));const{data}=await groupsApi.createMultiple({groups:groupList});const ok=data.results.filter(r=>r.success).length;const fail=data.results.filter(r=>!r.success).length;setToast({msg:`${ok} grupo(s) criado(s)${fail>0?`, ${fail} falha(s)`:""}`  ,type:ok>0?"success":"error"});setMultipleGroups([{subject:"",participants:""}]);await sync();}catch(e){setToast({msg:"Falha ao criar grupos",type:"error"});}finally{setCreating(false);}}else{const parts=newGroupParticipants.split("\n").filter(n=>n.trim()).map(n=>n.trim());if(!newGroupName||parts.length<1)return;setCreating(true);try{await groupsApi.create({subject:newGroupName,description:newGroupDesc,participants:parts});setToast({msg:"Grupo criado!",type:"success"});setNewGroupName("");setNewGroupDesc("");setNewGroupParticipants("");await sync();}catch(e){setToast({msg:e.response?.data?.error||"Falha",type:"error"});}finally{setCreating(false);}}};
   const addMultipleGroup=()=>setMultipleGroups([...multipleGroups,{subject:"",participants:""}]);
   const removeMultipleGroup=(i)=>setMultipleGroups(multipleGroups.filter((_,idx)=>idx!==i));
   const updateMultipleGroup=(i,field,val)=>{const n=[...multipleGroups];n[i][field]=val;setMultipleGroups(n);};
 
-  // ===== MASS SEND =====
   const toggleMassGroup=(jid)=>{setMassSelectedGroups(prev=>prev.includes(jid)?prev.filter(j=>j!==jid):[...prev,jid]);};
   const selectAllGroups=()=>{if(massSelectedGroups.length===groups.length)setMassSelectedGroups([]);else setMassSelectedGroups(groups.map(g=>g.group_jid));};
 
-const massSendToGroups=async()=>{
+  const massSendToGroups=async()=>{
     if(massSelectedGroups.length===0||(!massText&&!massMedia)){setToast({msg:"Selecione grupos e preencha mensagem/mídia",type:"error"});return;}
     setMassSending(true);
     try{
+      const avgInterval=Math.floor((speedConfig.minInterval+speedConfig.maxInterval)/2);
       if(massScheduled){
-        // Salvar como campanha agendada
         const recipients=massSelectedGroups.map(jid=>({phone:jid,name:groups.find(g=>g.group_jid===jid)?.name||jid}));
-        const p={name:"Grupo: Disparo "+new Date().toLocaleDateString("pt-BR"),message:massText||'',recipients,interval_ms:parseInt(massInterval)*1000,scheduled_at:massScheduled};
+        const p={name:"Grupo: Disparo "+new Date().toLocaleDateString("pt-BR"),message:massText||'',recipients,interval_ms:avgInterval*1000,scheduled_at:massScheduled};
         if(massMedia){p.media_url=massMedia.url||'';p.media_type=massMedia.type;}
         await campaignsApi.create(p);
         setToast({msg:`Disparo agendado para ${new Date(massScheduled).toLocaleString("pt-BR")} em ${massSelectedGroups.length} grupos!`,type:"success"});
       }else{
-        const data={groupJids:massSelectedGroups,text:massText||'',interval_ms:parseInt(massInterval)*1000,mentionsEveryOne:massMentionAll};
+        const data={groupJids:massSelectedGroups,text:massText||'',interval_ms:avgInterval*1000,mentionsEveryOne:massMentionAll};
         if(massMedia){data.media=massMedia.isUrl?massMedia.url:(massMedia.url||'');data.mediaType=massMedia.type;data.mimetype=massMedia.file?.type||'image/png';data.fileName=massMedia.name||'file';data.caption=massText||'';}
         await groupsApi.massSend(data);
         setToast({msg:`Disparo iniciado para ${massSelectedGroups.length} grupos!`,type:"success"});
@@ -808,7 +779,11 @@ const massSendToGroups=async()=>{
     }catch(e){setToast({msg:e.response?.data?.error||"Falha",type:"error"});}finally{setMassSending(false);}
   };
 
-  // ===== MANAGE =====
+  // Campaign actions
+  const cancelCampaign=async(cp)=>{if(!confirm(`Cancelar "${cp.name}"?`))return;try{await campaignsApi.cancel(cp.id);setToast({msg:"Cancelado!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}};
+  const deleteCampaign=async(cp)=>{if(!confirm(`Remover "${cp.name}"?`))return;try{await campaignsApi.delete(cp.id);setToast({msg:"Removido!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}};
+  const saveEditCampaign=async()=>{if(!editCampaign)return;try{await campaignsApi.update(editCampaign.id,{name:editName2,scheduled_at:editScheduled||null});setToast({msg:"Atualizado!",type:"success"});setEditCampaign(null);load();}catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}};
+
   const updateSubject=async()=>{if(!editName)return;try{await groupsApi.updateSubject(selected.group_jid,editName);setToast({msg:"Nome alterado!",type:"success"});load();}catch(e){setToast({msg:"Falha",type:"error"});}};
   const updateDesc=async()=>{try{await groupsApi.updateDescription(selected.group_jid,editDesc);setToast({msg:"Descrição alterada!",type:"success"});}catch(e){setToast({msg:"Falha",type:"error"});}};
   const changeSetting=async(action)=>{try{await groupsApi.updateSettings(selected.group_jid,action);const labels={announcement:"Apenas admins enviam",not_announcement:"Todos enviam",locked:"Apenas admins editam",unlocked:"Todos editam"};setToast({msg:labels[action]||"Alterado!",type:"success"});}catch(e){setToast({msg:"Falha",type:"error"});}};
@@ -817,12 +792,22 @@ const massSendToGroups=async()=>{
   const getInviteLink=async()=>{try{const{data}=await groupsApi.inviteCode(selected.group_jid);setInviteLink(data.inviteCode?.inviteUrl||data.inviteCode||JSON.stringify(data));}catch(e){setToast({msg:"Falha",type:"error"});}};
   const leaveGroup=async()=>{if(!confirm("Tem certeza que deseja sair deste grupo?"))return;try{await groupsApi.leave(selected.group_jid);setToast({msg:"Saiu do grupo!",type:"success"});setSelected(null);load();}catch(e){setToast({msg:"Falha",type:"error"});}};
 
-  // ===== TAB BUTTON =====
   const tabBtn=(id,icon,label)=>{const Icon=icon;const active=tab===id;return<button key={id} onClick={()=>{setTab(id);if(id==="manage"&&selected)loadMembers(selected.group_jid);}} style={{padding:"7px 12px",borderRadius:"8px",border:"none",background:active?c.accent:c.bgInput,color:active?"white":c.textSec,fontSize:"11px",fontWeight:"600",cursor:"pointer",display:"flex",alignItems:"center",gap:"5px",transition:"all 0.2s"}}><Icon size={13}/>{label}</button>;};
+  const stS=s=>({completed:{bg:c.okSoft,col:c.ok,l:"Concluída"},running:{bg:c.warnSoft,col:c.warn,l:"Enviando"},scheduled:{bg:c.infoSoft,col:c.info,l:"Agendada"},canceled:{bg:c.dangerSoft,col:c.danger,l:"Cancelada"}}[s]||{bg:c.bgInput,col:c.textMut,l:s});
 
   return(<div style={{padding:"24px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
-    <div style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:"14px"}}>
 
+    {/* Edit Campaign Modal */}
+    {editCampaign&&<div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={()=>setEditCampaign(null)}>
+      <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"420px",width:"100%",border:`1px solid ${c.border}`}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{margin:"0 0 16px",fontSize:"17px",fontWeight:"700",color:c.text}}>Editar Disparo</h3>
+        <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Nome</label><input value={editName2} onChange={e=>setEditName2(e.target.value)} style={inp(c)}/></div>
+        <div style={{marginBottom:"20px"}}><label style={lbl(c)}>Agendamento</label><input type="datetime-local" value={editScheduled} onChange={e=>setEditScheduled(e.target.value)} style={inp(c)}/></div>
+        <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}><button onClick={()=>setEditCampaign(null)} style={btnS(c)}>Cancelar</button><button onClick={saveEditCampaign} style={btnP(c,false)}>Salvar</button></div>
+      </div>
+    </div>}
+
+    <div style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:"14px"}}>
       {/* LEFT: Group List */}
       <div style={card(c)}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
@@ -849,18 +834,13 @@ const massSendToGroups=async()=>{
         {tab==="create"&&!selected&&<>
           <h3 style={{margin:"0 0 16px",fontSize:"16px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px"}}><Plus size={18} color={c.accent}/>Criar Grupo</h3>
           <div style={{display:"flex",gap:"8px",marginBottom:"16px"}}><button onClick={()=>setCreateMode("single")} style={{padding:"7px 14px",borderRadius:"8px",border:"none",background:createMode==="single"?c.accent:c.bgInput,color:createMode==="single"?"white":c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>Grupo Único</button><button onClick={()=>setCreateMode("multiple")} style={{padding:"7px 14px",borderRadius:"8px",border:"none",background:createMode==="multiple"?c.accent:c.bgInput,color:createMode==="multiple"?"white":c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>Múltiplos Grupos</button></div>
-
           {createMode==="single"?<>
             <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Nome do Grupo</label><input value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="Ex: Equipe de Vendas" style={inp(c)}/></div>
             <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Descrição (opcional)</label><textarea value={newGroupDesc} onChange={e=>setNewGroupDesc(e.target.value)} placeholder="Descrição do grupo..." rows={2} style={{...inp(c),resize:"vertical"}}/></div>
             <div style={{marginBottom:"18px"}}><label style={lbl(c)}>Participantes (um número por linha)</label><textarea value={newGroupParticipants} onChange={e=>setNewGroupParticipants(e.target.value)} placeholder={"5511999887766\n5511988776655"} rows={4} style={{...inp(c),fontFamily:"monospace",fontSize:"13px",resize:"vertical"}}/><span style={{fontSize:"11px",color:c.textMut}}>{newGroupParticipants.split("\n").filter(n=>n.trim()).length} participantes</span></div>
             <button onClick={createGroup} disabled={creating||!newGroupName||!newGroupParticipants.trim()} style={btnP(c,creating||!newGroupName||!newGroupParticipants.trim())}>{creating?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<Plus size={14}/>}{creating?"Criando...":"Criar Grupo"}</button>
           </>:<>
-            {multipleGroups.map((g,i)=><div key={i} style={{background:c.bgInput,borderRadius:"12px",padding:"14px",marginBottom:"10px",border:`1px solid ${c.border}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}><span style={{fontSize:"13px",fontWeight:"600",color:c.text}}>Grupo {i+1}</span>{multipleGroups.length>1&&<button onClick={()=>removeMultipleGroup(i)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger}}><X size={16}/></button>}</div>
-              <div style={{marginBottom:"8px"}}><input value={g.subject} onChange={e=>updateMultipleGroup(i,"subject",e.target.value)} placeholder="Nome do grupo" style={inp(c)}/></div>
-              <div><textarea value={g.participants} onChange={e=>updateMultipleGroup(i,"participants",e.target.value)} placeholder={"Participantes (um por linha)\n5511999887766"} rows={3} style={{...inp(c),fontFamily:"monospace",fontSize:"12px",resize:"vertical"}}/></div>
-            </div>)}
+            {multipleGroups.map((g,i)=><div key={i} style={{background:c.bgInput,borderRadius:"12px",padding:"14px",marginBottom:"10px",border:`1px solid ${c.border}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}><span style={{fontSize:"13px",fontWeight:"600",color:c.text}}>Grupo {i+1}</span>{multipleGroups.length>1&&<button onClick={()=>removeMultipleGroup(i)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger}}><X size={16}/></button>}</div><div style={{marginBottom:"8px"}}><input value={g.subject} onChange={e=>updateMultipleGroup(i,"subject",e.target.value)} placeholder="Nome do grupo" style={inp(c)}/></div><div><textarea value={g.participants} onChange={e=>updateMultipleGroup(i,"participants",e.target.value)} placeholder={"Participantes (um por linha)\n5511999887766"} rows={3} style={{...inp(c),fontFamily:"monospace",fontSize:"12px",resize:"vertical"}}/></div></div>)}
             <button onClick={addMultipleGroup} style={{background:"none",border:"none",color:c.accent,fontSize:"13px",fontWeight:"600",cursor:"pointer",padding:"4px 0",marginBottom:"14px",display:"flex",alignItems:"center",gap:"4px"}}><Plus size={14}/>Adicionar grupo</button>
             <button onClick={createGroup} disabled={creating} style={btnP(c,creating)}>{creating?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<Plus size={14}/>}{creating?"Criando...":"Criar Todos"}</button>
           </>}
@@ -872,12 +852,7 @@ const massSendToGroups=async()=>{
 
           <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Selecionar Grupos ({massSelectedGroups.length}/{groups.length})</label>
             <button onClick={selectAllGroups} style={{...btnS(c),padding:"5px 10px",fontSize:"11px",marginBottom:"8px"}}>{massSelectedGroups.length===groups.length?"Desmarcar todos":"Selecionar todos"}</button>
-            <div style={{maxHeight:"180px",overflowY:"auto",border:`1px solid ${c.border}`,borderRadius:"10px"}}>
-              {groups.map(g=>{const checked=massSelectedGroups.includes(g.group_jid);return<div key={g.id} onClick={()=>toggleMassGroup(g.group_jid)} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 12px",cursor:"pointer",background:checked?c.accentSoft:"transparent",borderBottom:`1px solid ${c.border}`}}>
-                <input type="checkbox" checked={checked} readOnly style={{accentColor:c.accent}}/>
-                <div><div style={{fontSize:"12px",fontWeight:"600",color:c.text}}>{g.name||g.group_jid}</div><div style={{fontSize:"10px",color:c.textMut}}>{g.member_count||0} membros</div></div>
-              </div>;})}
-            </div>
+            <div style={{maxHeight:"180px",overflowY:"auto",border:`1px solid ${c.border}`,borderRadius:"10px"}}>{groups.map(g=>{const checked=massSelectedGroups.includes(g.group_jid);return<div key={g.id} onClick={()=>toggleMassGroup(g.group_jid)} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 12px",cursor:"pointer",background:checked?c.accentSoft:"transparent",borderBottom:`1px solid ${c.border}`}}><input type="checkbox" checked={checked} readOnly style={{accentColor:c.accent}}/><div><div style={{fontSize:"12px",fontWeight:"600",color:c.text}}>{g.name||g.group_jid}</div><div style={{fontSize:"10px",color:c.textMut}}>{g.member_count||0} membros</div></div></div>;})}</div>
           </div>
 
           <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Mensagem</label><textarea value={massText} onChange={e=>setMassText(e.target.value)} placeholder="Mensagem para os grupos..." rows={4} style={{...inp(c),resize:"vertical"}}/></div>
@@ -885,79 +860,65 @@ const massSendToGroups=async()=>{
           <label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Anexar Mídia (opcional)</label>
           <MediaPicker selected={massMedia} onSelect={setMassMedia} onRemove={()=>setMassMedia(null)}/>
 
-		<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"14px",marginBottom:"14px",alignItems:"end"}}>
-            <div><label style={lbl(c)}>Intervalo (seg)</label><input value={massInterval} onChange={e=>setMassInterval(e.target.value)} type="number" min="1" style={inp(c)}/></div>
+          {/* Velocidade de envio */}
+          <div style={{background:c.bgInput,borderRadius:"14px",padding:"18px",border:`1px solid ${c.border}`,marginBottom:"16px"}}>
+            <label style={{fontSize:"14px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}><Zap size={16} color={c.accent}/>Velocidade de envio</label>
+            <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"14px"}}>{Object.entries(speedPresets).map(([key,preset])=>(
+              <button key={key} onClick={()=>selectSpeed(key)} style={{padding:"10px 16px",borderRadius:"10px",border:`1px solid ${speedPreset===key?c.accent:c.border}`,background:speedPreset===key?c.accentSoft:c.bgCard,color:speedPreset===key?c.accent:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer",textAlign:"left"}}><div>{preset.label}</div><div style={{fontSize:"10px",color:c.textMut,marginTop:"2px"}}>{preset.desc}</div></button>
+            ))}</div>
+            {speedPreset==="custom"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px"}}>
+              <div><label style={lbl(c)}>Mínimo (seg)</label><input type="number" value={speedConfig.minInterval} onChange={e=>setSpeedConfig({...speedConfig,minInterval:parseInt(e.target.value)||1})} style={inp(c)}/></div>
+              <div><label style={lbl(c)}>Máximo (seg)</label><input type="number" value={speedConfig.maxInterval} onChange={e=>setSpeedConfig({...speedConfig,maxInterval:parseInt(e.target.value)||1})} style={inp(c)}/></div>
+              <div><label style={lbl(c)}>Tamanho do pacote</label><input type="number" value={speedConfig.batchSize} onChange={e=>setSpeedConfig({...speedConfig,batchSize:parseInt(e.target.value)||10})} style={inp(c)}/></div>
+              <div><label style={lbl(c)}>Pausa entre pacotes (min)</label><div style={{display:"flex",gap:"8px"}}><input type="number" value={speedConfig.minBatchPause} onChange={e=>setSpeedConfig({...speedConfig,minBatchPause:parseInt(e.target.value)||1})} placeholder="Min" style={{...inp(c),width:"50%"}}/><input type="number" value={speedConfig.maxBatchPause} onChange={e=>setSpeedConfig({...speedConfig,maxBatchPause:parseInt(e.target.value)||1})} placeholder="Max" style={{...inp(c),width:"50%"}}/></div></div>
+            </div>}
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"14px",alignItems:"end"}}>
             <div><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Calendar size={12}/>Agendar (opcional)</label><input value={massScheduled||""} onChange={e=>setMassScheduled(e.target.value)} type="datetime-local" style={inp(c)}/></div>
             <label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer",paddingBottom:"12px"}}><input type="checkbox" checked={massMentionAll} onChange={e=>setMassMentionAll(e.target.checked)} style={{accentColor:c.accent}}/>Mencionar todos</label>
           </div>
 
           <button onClick={massSendToGroups} disabled={massSending||massSelectedGroups.length===0||(!massText&&!massMedia)} style={btnP(c,massSending||massSelectedGroups.length===0||(!massText&&!massMedia))}>{massSending?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:massScheduled?<Calendar size={14}/>:<Play size={14}/>}{massSending?"Enviando...":massScheduled?"Agendar Disparo":"Iniciar Disparo"}</button>
-        </>}
 
-        {/* Histórico de disparos */}
+          {/* Histórico */}
           <div style={{marginTop:"20px",paddingTop:"16px",borderTop:`1px solid ${c.border}`}}>
             <h4 style={{margin:"0 0 12px",fontSize:"14px",fontWeight:"700",color:c.text}}>Histórico de Disparos em Grupos</h4>
-            {massCampaigns.length===0?<p style={{fontSize:"12px",color:c.textMut}}>Nenhum disparo em grupo registrado.</p>:
+            {massCampaigns.length===0?<p style={{fontSize:"12px",color:c.textMut}}>Nenhum disparo registrado.</p>:
             <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
-              {["Campanha","Total","Enviadas","Falhas","Status","Data"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 10px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
+              {["Campanha","Total","Enviadas","Falhas","Status","Data","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 10px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
             </tr></thead><tbody>
-              {massCampaigns.slice(0,10).map(cp=>{const st=cp.status==="completed"?{bg:c.okSoft,col:c.ok,l:"Concluída"}:cp.status==="running"?{bg:c.warnSoft,col:c.warn,l:"Enviando"}:cp.status==="scheduled"?{bg:c.infoSoft,col:c.info,l:"Agendada"}:{bg:c.bgInput,col:c.textMut,l:cp.status};return<tr key={cp.id}>
+              {massCampaigns.slice(0,10).map(cp=>{const st=stS(cp.status);return<tr key={cp.id}>
                 <td style={{padding:"8px 10px",fontSize:"12px",fontWeight:"600",color:c.text}}>{cp.name?.replace("Grupo: ","")}</td>
                 <td style={{padding:"8px 10px",fontSize:"12px",color:c.textSec}}>{cp.total_recipients}</td>
                 <td style={{padding:"8px 10px",fontSize:"12px",color:c.ok}}>{cp.sent_count}</td>
                 <td style={{padding:"8px 10px",fontSize:"12px",color:cp.failed_count>0?c.danger:c.textMut}}>{cp.failed_count}</td>
                 <td style={{padding:"8px 10px"}}><span style={{fontSize:"10px",fontWeight:"600",padding:"2px 8px",borderRadius:"6px",background:st.bg,color:st.col}}>{st.l}</span></td>
                 <td style={{padding:"8px 10px",fontSize:"11px",color:c.textMut}}>{cp.created_at?new Date(cp.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</td>
+                <td style={{padding:"8px 10px",display:"flex",gap:"4px"}}>
+                  {cp.status==="scheduled"&&<><button onClick={()=>{setEditCampaign(cp);setEditName2(cp.name);setEditScheduled(cp.scheduled_at?new Date(cp.scheduled_at).toISOString().slice(0,16):"");}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}} title="Editar"><Edit size={14}/></button>
+                  <button onClick={()=>cancelCampaign(cp)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}} title="Cancelar"><X size={14}/></button></>}
+                  {(cp.status==="completed"||cp.status==="canceled")&&<button onClick={()=>deleteCampaign(cp)} style={{background:"none",border:"none",cursor:"pointer",color:c.textMut,padding:"3px"}} title="Remover"><Trash2 size={14}/></button>}
+                </td>
               </tr>;})}
             </tbody></table></div>}
           </div>
-		  
+        </>}
+
         {/* No group selected */}
         {!selected&&tab!=="create"&&tab!=="mass"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:c.textMut,textAlign:"center"}}><Users size={40} style={{marginBottom:"14px",opacity:0.3}}/><p style={{fontSize:"14px",margin:0}}>Selecione um grupo, crie ou dispare em massa</p></div>}
 
         {/* Group selected */}
         {selected&&<>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:"10px"}}><div style={{width:"42px",height:"42px",borderRadius:"12px",background:c.violetGlow,display:"flex",alignItems:"center",justifyContent:"center"}}><Hash size={18} color={c.violet}/></div><div><div style={{fontSize:"15px",fontWeight:"700",color:c.text}}>{selected.name||selected.group_jid}</div><div style={{fontSize:"12px",color:c.textMut}}>{selected.member_count||0} membros</div></div></div>
-          </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px"}}><div style={{display:"flex",alignItems:"center",gap:"10px"}}><div style={{width:"42px",height:"42px",borderRadius:"12px",background:c.violetGlow,display:"flex",alignItems:"center",justifyContent:"center"}}><Hash size={18} color={c.violet}/></div><div><div style={{fontSize:"15px",fontWeight:"700",color:c.text}}>{selected.name||selected.group_jid}</div><div style={{fontSize:"12px",color:c.textMut}}>{selected.member_count||0} membros</div></div></div></div>
+          <div style={{display:"flex",gap:"6px",marginBottom:"18px",flexWrap:"wrap"}}>{tabBtn("send",Send,"Mensagem")}{tabBtn("poll",BarChart3,"Enquete")}{tabBtn("contact",Phone,"Contato")}{tabBtn("manage",Settings,"Gerenciar")}</div>
 
-          <div style={{display:"flex",gap:"6px",marginBottom:"18px",flexWrap:"wrap"}}>
-            {tabBtn("send",Send,"Mensagem")}{tabBtn("poll",BarChart3,"Enquete")}{tabBtn("contact",Phone,"Contato")}{tabBtn("manage",Settings,"Gerenciar")}
-          </div>
+          {tab==="send"&&<><div style={{marginBottom:"14px"}}><label style={lbl(c)}>Mensagem {groupMedia?"(legenda)":""}</label><textarea value={msgText} onChange={e=>setMsgText(e.target.value)} placeholder={groupMedia?"Legenda...":"Mensagem para o grupo..."} rows={4} style={{...inp(c),resize:"vertical"}}/></div><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Anexar Mídia</label><MediaPicker selected={groupMedia} onSelect={setGroupMedia} onRemove={()=>setGroupMedia(null)}/>{!groupMedia&&<div style={{marginBottom:"14px",display:"flex",gap:"16px",flexWrap:"wrap"}}><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="checkbox" checked={mentionAll} onChange={e=>setMentionAll(e.target.checked)} style={{accentColor:c.accent}}/>Mencionar todos</label></div>}{!groupMedia&&!mentionAll&&<div style={{marginBottom:"14px"}}><label style={lbl(c)}>Menções ocultas</label><textarea value={mentionNumbers} onChange={e=>setMentionNumbers(e.target.value)} placeholder={"5511999887766"} rows={2} style={{...inp(c),fontFamily:"monospace",fontSize:"12px",resize:"vertical"}}/></div>}<button onClick={sendToGroup} disabled={sending||(!msgText&&!groupMedia)} style={btnP(c,sending||(!msgText&&!groupMedia))}>{sending?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<Send size={14}/>}{sending?"Enviando...":"Enviar"}</button></>}
 
-          {/* TAB: Send Message + Media */}
-          {tab==="send"&&<>
-            <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Mensagem {groupMedia?"(legenda)":""}</label><textarea value={msgText} onChange={e=>setMsgText(e.target.value)} placeholder={groupMedia?"Legenda da mídia (opcional)...":"Mensagem para o grupo..."} rows={4} style={{...inp(c),resize:"vertical"}}/></div>
+          {tab==="poll"&&<><div style={{marginBottom:"14px"}}><label style={lbl(c)}>Pergunta</label><input value={pollQuestion} onChange={e=>setPollQuestion(e.target.value)} placeholder="Ex: Qual o melhor dia?" style={inp(c)}/></div><label style={lbl(c)}>Opções</label>{pollOptions.map((opt,i)=><div key={i} style={{display:"flex",gap:"8px",marginBottom:"8px"}}><input value={opt} onChange={e=>updatePollOption(i,e.target.value)} placeholder={`Opção ${i+1}`} style={{...inp(c),flex:1}}/>{pollOptions.length>2&&<button onClick={()=>removePollOption(i)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"4px"}}><X size={16}/></button>}</div>)}<button onClick={addPollOption} style={{background:"none",border:"none",color:c.accent,fontSize:"13px",fontWeight:"600",cursor:"pointer",padding:"4px 0",marginBottom:"14px",display:"flex",alignItems:"center",gap:"4px"}}><Plus size={14}/>Adicionar opção</button><label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer",marginBottom:"18px"}}><input type="checkbox" checked={pollMulti} onChange={e=>setPollMulti(e.target.checked)} style={{accentColor:c.accent}}/>Múltiplas respostas</label><button onClick={sendPoll} disabled={sendingPoll||!pollQuestion||pollOptions.filter(o=>o.trim()).length<2} style={btnP(c,sendingPoll||!pollQuestion||pollOptions.filter(o=>o.trim()).length<2)}>{sendingPoll?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<BarChart3 size={14}/>}{sendingPoll?"Enviando...":"Enviar Enquete"}</button></>}
 
-            <label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Anexar Mídia</label>
-            <MediaPicker selected={groupMedia} onSelect={setGroupMedia} onRemove={()=>setGroupMedia(null)}/>
+          {tab==="contact"&&<><div style={{marginBottom:"14px"}}><label style={lbl(c)}>Nome</label><input value={contactName} onChange={e=>setContactName(e.target.value)} placeholder="João Silva" style={inp(c)}/></div><div style={{marginBottom:"14px"}}><label style={lbl(c)}>Número</label><input value={contactPhone} onChange={e=>setContactPhone(e.target.value)} placeholder="5511999887766" style={inp(c)}/></div><div style={{marginBottom:"18px"}}><label style={lbl(c)}>Empresa (opcional)</label><input value={contactOrg} onChange={e=>setContactOrg(e.target.value)} placeholder="Empresa" style={inp(c)}/></div><button onClick={sendContact} disabled={sendingContact||!contactName||!contactPhone} style={btnP(c,sendingContact||!contactName||!contactPhone)}>{sendingContact?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<Phone size={14}/>}{sendingContact?"Enviando...":"Enviar Contato"}</button></>}
 
-            {!groupMedia&&<div style={{marginBottom:"14px",display:"flex",gap:"16px",flexWrap:"wrap"}}>
-              <label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer"}}><input type="checkbox" checked={mentionAll} onChange={e=>setMentionAll(e.target.checked)} style={{accentColor:c.accent}}/>Mencionar todos</label>
-            </div>}
-            {!groupMedia&&!mentionAll&&<div style={{marginBottom:"14px"}}><label style={lbl(c)}>Menções ocultas (números, um por linha)</label><textarea value={mentionNumbers} onChange={e=>setMentionNumbers(e.target.value)} placeholder={"5511999887766"} rows={2} style={{...inp(c),fontFamily:"monospace",fontSize:"12px",resize:"vertical"}}/></div>}
-            <button onClick={sendToGroup} disabled={sending||(!msgText&&!groupMedia)} style={btnP(c,sending||(!msgText&&!groupMedia))}>{sending?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<Send size={14}/>}{sending?"Enviando...":"Enviar"}</button>
-          </>}
-
-          {/* TAB: Poll */}
-          {tab==="poll"&&<>
-            <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Pergunta da Enquete</label><input value={pollQuestion} onChange={e=>setPollQuestion(e.target.value)} placeholder="Ex: Qual o melhor dia?" style={inp(c)}/></div>
-            <label style={lbl(c)}>Opções</label>
-            {pollOptions.map((opt,i)=><div key={i} style={{display:"flex",gap:"8px",marginBottom:"8px"}}><input value={opt} onChange={e=>updatePollOption(i,e.target.value)} placeholder={`Opção ${i+1}`} style={{...inp(c),flex:1}}/>{pollOptions.length>2&&<button onClick={()=>removePollOption(i)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"4px"}}><X size={16}/></button>}</div>)}
-            <button onClick={addPollOption} style={{background:"none",border:"none",color:c.accent,fontSize:"13px",fontWeight:"600",cursor:"pointer",padding:"4px 0",marginBottom:"14px",display:"flex",alignItems:"center",gap:"4px"}}><Plus size={14}/>Adicionar opção</button>
-            <label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer",marginBottom:"18px"}}><input type="checkbox" checked={pollMulti} onChange={e=>setPollMulti(e.target.checked)} style={{accentColor:c.accent}}/>Múltiplas respostas</label>
-            <button onClick={sendPoll} disabled={sendingPoll||!pollQuestion||pollOptions.filter(o=>o.trim()).length<2} style={btnP(c,sendingPoll||!pollQuestion||pollOptions.filter(o=>o.trim()).length<2)}>{sendingPoll?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<BarChart3 size={14}/>}{sendingPoll?"Enviando...":"Enviar Enquete"}</button>
-          </>}
-
-          {/* TAB: Contact */}
-          {tab==="contact"&&<>
-            <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Nome do Contato</label><input value={contactName} onChange={e=>setContactName(e.target.value)} placeholder="João Silva" style={inp(c)}/></div>
-            <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Número</label><input value={contactPhone} onChange={e=>setContactPhone(e.target.value)} placeholder="5511999887766" style={inp(c)}/></div>
-            <div style={{marginBottom:"18px"}}><label style={lbl(c)}>Empresa (opcional)</label><input value={contactOrg} onChange={e=>setContactOrg(e.target.value)} placeholder="Empresa" style={inp(c)}/></div>
-            <button onClick={sendContact} disabled={sendingContact||!contactName||!contactPhone} style={btnP(c,sendingContact||!contactName||!contactPhone)}>{sendingContact?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<Phone size={14}/>}{sendingContact?"Enviando...":"Enviar Contato"}</button>
-          </>}
-
-          {/* TAB: Manage */}
           {tab==="manage"&&<>
             <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Nome do Grupo</label><div style={{display:"flex",gap:"8px"}}><input value={editName} onChange={e=>setEditName(e.target.value)} style={{...inp(c),flex:1}}/><button onClick={updateSubject} style={{...btnP(c,false),padding:"10px 16px",fontSize:"12px"}}>Salvar</button></div></div>
             <div style={{marginBottom:"16px"}}><label style={lbl(c)}>Descrição</label><div style={{display:"flex",gap:"8px"}}><textarea value={editDesc} onChange={e=>setEditDesc(e.target.value)} rows={2} style={{...inp(c),flex:1,resize:"vertical"}}/><button onClick={updateDesc} style={{...btnP(c,false),padding:"10px 16px",fontSize:"12px",alignSelf:"flex-start"}}>Salvar</button></div></div>
