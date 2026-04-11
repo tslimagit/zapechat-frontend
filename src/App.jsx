@@ -113,7 +113,7 @@ function MediaPicker({onSelect,selected,onRemove}){
 function PreviewModal({number,text,media,onConfirm,onCancel,sending}){
   const{dark}=useTheme();const c=C(dark);
   return(<div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={onCancel}>
-    <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"420px",width:"100%",border:`1px solid ${c.border}`,boxShadow:c.shadowLg}} onClick={e=>e.stopPropagation()}>
+    <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"560px",width:"100%",border:`1px solid ${c.border}`,boxShadow:c.shadowLg}} onClick={e=>e.stopPropagation()}>
       <h3 style={{margin:"0 0 4px",fontSize:"17px",fontWeight:"700",color:c.text}}>Confirmar Envio</h3>
       <p style={{margin:"0 0 20px",fontSize:"13px",color:c.textMut}}>Revise antes de enviar</p>
       <div style={{background:dark?"#005c4b":"#dcf8c6",borderRadius:"12px 12px 12px 4px",padding:"12px 14px",marginBottom:"16px",maxWidth:"90%"}}>
@@ -802,7 +802,8 @@ function GroupsPage(){
     {editCampaign&&<div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={()=>setEditCampaign(null)}>
       <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"420px",width:"100%",border:`1px solid ${c.border}`}} onClick={e=>e.stopPropagation()}>
         <h3 style={{margin:"0 0 16px",fontSize:"17px",fontWeight:"700",color:c.text}}>Editar Disparo</h3>
-        <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Nome</label><input value={editName2} onChange={e=>setEditName2(e.target.value)} style={inp(c)}/></div>
+		<div style={{marginBottom:"14px"}}><label style={lbl(c)}>Nome</label><input value={editName2} onChange={e=>setEditName2(e.target.value)} style={inp(c)}/></div>
+        <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Mensagem</label><textarea value={editMessage} onChange={e=>setEditMessage(e.target.value)} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}}/></div>
         <div style={{marginBottom:"20px"}}><label style={lbl(c)}>Agendamento</label><input type="datetime-local" value={editScheduled} onChange={e=>setEditScheduled(e.target.value)} style={inp(c)}/></div>
         <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}><button onClick={()=>setEditCampaign(null)} style={btnS(c)}>Cancelar</button><button onClick={saveEditCampaign} style={btnP(c,false)}>Salvar</button></div>
       </div>
