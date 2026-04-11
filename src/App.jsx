@@ -200,16 +200,15 @@ function AuthPage({onLogin}){
 function AutomationsPage(){
   const{dark}=useTheme();const c=C(dark);
   const[automations,setAutomations]=useState([]);const[logs,setLogs]=useState([]);const[loading,setLoading]=useState(true);
-  const[toast,setToast]=useState(null);const[webhookUrl,setWebhookUrl]=useState("");
+  const[toast,setToast]=useState(null);
   const[showCreate,setShowCreate]=useState(false);const[creating,setCreating]=useState(false);
-  const[tab,setTab]=useState("list"); // list, logs
+  const[tab,setTab]=useState("list");
   const[editId,setEditId]=useState(null);
   const[seqMessages,setSeqMessages]=useState([{message_template:"",delay_minutes:0}]);
   const[loadingSeq,setLoadingSeq]=useState(false);
- 
-  // Form state
+
   const[form,setForm]=useState({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});
- 
+
   const platforms=[{id:"hotmart",label:"Hotmart"},{id:"eduzz",label:"Eduzz"},{id:"kiwify",label:"Kiwify"},{id:"voomp",label:"Voomp"},{id:"guru",label:"Guru"}];
   const events=[
     {id:"purchase_approved",label:"Compra Aprovada",emoji:"✅"},
@@ -217,14 +216,14 @@ function AutomationsPage(){
     {id:"pix_generated",label:"PIX Gerado",emoji:"💰"},
     {id:"cart_abandoned",label:"Carrinho Abandonado",emoji:"🛒"},
   ];
- 
+
   const templates={
     purchase_approved:"Olá {nome}! 🎉\n\nSua compra do *{produto}* foi aprovada com sucesso!\n\nEm caso de dúvidas, entre em contato:\n📱 {telefone_suporte}\n📧 {email_suporte}\n\nObrigado pela confiança!",
     boleto_generated:"Olá {nome}! 📄\n\nSeu boleto para o *{produto}* foi gerado!\n\nNão esqueça de efetuar o pagamento até o vencimento.\n\nDúvidas? {telefone_suporte}",
     pix_generated:"Olá {nome}! 💰\n\nSeu PIX para o *{produto}* foi gerado!\n\nEfetue o pagamento para liberar seu acesso.\n\nDúvidas? {telefone_suporte}",
     cart_abandoned:"Olá {nome}! 👋\n\nNotamos que você demonstrou interesse no *{produto}* mas não finalizou a compra.\n\nPosso te ajudar com alguma dúvida?\n\n📱 {telefone_suporte}",
   };
- 
+
   const load=async()=>{
     try{
       const[autoRes,logRes]=await Promise.all([automationsApi.list(),automationsApi.logs({limit:20})]);
@@ -232,57 +231,77 @@ function AutomationsPage(){
     }catch(e){console.error(e);}finally{setLoading(false);}
   };
   useEffect(()=>{load();},[]);
- 
+
+  const loadSequence=async(id)=>{setLoadingSeq(true);try{const{data}=await automationsApi.getMessages(id);if(data.messages&&data.messages.length>0)setSeqMessages(data.messages.map(m=>({message_template:m.message_template,delay_minutes:m.delay_minutes||0})));else setSeqMessages([{message_template:form.message_template||"",delay_minutes:0}]);}catch(e){setSeqMessages([{message_template:form.message_template||"",delay_minutes:0}]);}finally{setLoadingSeq(false);}};
+
   const save=async()=>{
-    if(!form.name||!form.message_template){setToast({msg:"Preencha nome e mensagem",type:"error"});return;}
+    // Validar: precisa ter nome e pelo menos uma mensagem (na sequência ou no form)
+    const hasSeqMsg=seqMessages.some(m=>m.message_template.trim());
+    if(!form.name||(!form.message_template&&!hasSeqMsg)){setToast({msg:"Preencha nome e pelo menos uma mensagem",type:"error"});return;}
     setCreating(true);
     try{
+      let autoId=editId;
       if(editId){
-        await automationsApi.update(editId,form);setToast({msg:"Automação atualizada!",type:"success"});
+        await automationsApi.update(editId,{...form,message_template:seqMessages[0]?.message_template||form.message_template});
+        setToast({msg:"Automação atualizada!",type:"success"});
       }else{
-        await automationsApi.create(form);setToast({msg:"Automação criada!",type:"success"});
+        const{data}=await automationsApi.create({...form,message_template:seqMessages[0]?.message_template||form.message_template});
+        autoId=data.automation?.id;
+        setToast({msg:"Automação criada!",type:"success"});
       }
-      setShowCreate(false);setEditId(null);setForm({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});load();
+      // Salvar sequência de mensagens
+      if(autoId&&seqMessages.length>0&&seqMessages.some(m=>m.message_template.trim())){
+        await automationsApi.saveMessages(autoId,seqMessages.filter(m=>m.message_template.trim()));
+      }
+      setShowCreate(false);setEditId(null);
+      setForm({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});
+      setSeqMessages([{message_template:"",delay_minutes:0}]);
+      load();
     }catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}finally{setCreating(false);}
   };
- 
+
   const toggleActive=async(auto)=>{
     try{await automationsApi.update(auto.id,{is_active:!auto.is_active});setToast({msg:`${auto.is_active?"Desativada":"Ativada"}!`,type:"success"});load();}
     catch(e){setToast({msg:"Erro",type:"error"});}
   };
- 
+
   const deleteAuto=async(auto)=>{
     if(!confirm(`Remover automação "${auto.name}"?`))return;
     try{await automationsApi.delete(auto.id);setToast({msg:"Removida!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}
   };
- 
+
   const startEdit=(auto)=>{
     setForm({name:auto.name,platform:auto.platform,event_type:auto.event_type,message_template:auto.message_template,support_phone:auto.support_phone||"",support_email:auto.support_email||""});
     setEditId(auto.id);setShowCreate(true);
+    loadSequence(auto.id);
   };
- 
-  const useTemplate=(eventType)=>{setForm({...form,event_type:eventType,message_template:templates[eventType]||""});};
- 
+
+  const useTemplate=(eventType)=>{
+    setForm({...form,event_type:eventType,message_template:templates[eventType]||""});
+    // Atualizar primeira mensagem da sequência com o template
+    const n=[...seqMessages];n[0].message_template=templates[eventType]||"";setSeqMessages(n);
+  };
+
   const copyUrl=()=>{navigator.clipboard?.writeText(webhookUrl);setToast({msg:"URL copiada!",type:"success"});};
- 
+
   const statusColor=(s)=>s==="sent"?c.ok:s==="failed"?c.danger:c.warn;
   const statusLabel=(s)=>s==="sent"?"Enviada":s==="failed"?"Falhou":"Ignorada";
   const eventLabel=(e)=>events.find(ev=>ev.id===e)?.label||e;
   const eventEmoji=(e)=>events.find(ev=>ev.id===e)?.emoji||"📌";
- 
+
   if(loading)return<div style={{padding:"40px",textAlign:"center",color:c.textMut}}><RefreshCw size={24} style={{animation:"spin 1s linear infinite"}}/></div>;
- 
+
   return(<div style={{padding:"24px"}}>
     {toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
- 
+
     {/* Tabs */}
     <div style={{display:"flex",gap:"8px",marginBottom:"16px"}}>
       <button onClick={()=>setTab("list")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="list"?c.accent:c.bgInput,color:tab==="list"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Automações</button>
       <button onClick={()=>setTab("logs")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="logs"?c.accent:c.bgInput,color:tab==="logs"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Histórico</button>
       <div style={{flex:1}}/>
-      <button onClick={()=>{setShowCreate(true);setEditId(null);setForm({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});}} style={btnP(c,false)}><Plus size={14}/>Nova Automação</button>
+      <button onClick={()=>{setShowCreate(true);setEditId(null);setForm({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});setSeqMessages([{message_template:"",delay_minutes:0}]);}} style={btnP(c,false)}><Plus size={14}/>Nova Automação</button>
     </div>
- 
+
     {/* Create/Edit Form */}
     {showCreate&&<div style={{...card(c),marginBottom:"16px"}}>
       <h3 style={{margin:"0 0 16px",fontSize:"16px",fontWeight:"700",color:c.text}}>{editId?"Editar":"Nova"} Automação</h3>
@@ -291,41 +310,80 @@ function AutomationsPage(){
         <div><label style={lbl(c)}>Nome</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Boas-vindas Compra" style={inp(c)}/></div>
         <div><label style={lbl(c)}>Plataforma</label><select value={form.platform} onChange={e=>setForm({...form,platform:e.target.value})} style={inp(c)}>{platforms.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
       </div>
- 
+
       <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Evento</label>
         <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>{events.map(e=>(
           <button key={e.id} onClick={()=>useTemplate(e.id)} style={{padding:"8px 14px",borderRadius:"10px",border:`1px solid ${form.event_type===e.id?c.accent:c.border}`,background:form.event_type===e.id?c.accentSoft:c.bgInput,color:form.event_type===e.id?c.accent:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>{e.emoji} {e.label}</button>
         ))}</div>
       </div>
- 
-      <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Mensagem (use variáveis: {"{nome}"}, {"{produto}"}, {"{telefone_suporte}"}, {"{email_suporte}"}, {"{valor}"})</label>
-        <textarea value={form.message_template} onChange={e=>setForm({...form,message_template:e.target.value})} rows={6} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder="Olá {nome}! Sua compra do {produto} foi aprovada..."/>
-        <div style={{display:"flex",gap:"6px",marginTop:"6px",flexWrap:"wrap"}}>
-          {["{nome}","{produto}","{valor}","{telefone_suporte}","{email_suporte}","{transacao}"].map(v=>(
-            <button key={v} onClick={()=>setForm({...form,message_template:form.message_template+v})} style={{padding:"3px 8px",borderRadius:"6px",border:`1px solid ${c.border}`,background:c.bgInput,color:c.accent,fontSize:"11px",fontWeight:"600",cursor:"pointer"}}>{v}</button>
-          ))}
-        </div>
+
+      {/* Sequência de Mensagens */}
+      <div style={{marginBottom:"14px"}}>
+        <label style={lbl(c)}>Sequência de Mensagens</label>
+        <span style={{fontSize:"11px",color:c.textMut,display:"block",marginBottom:"10px"}}>Adicione múltiplas mensagens com intervalos. A primeira é enviada imediatamente.</span>
+
+        {loadingSeq?<div style={{textAlign:"center",padding:"20px"}}><RefreshCw size={16} color={c.textMut} style={{animation:"spin 1s linear infinite"}}/></div>:
+        seqMessages.map((msg,i)=>(
+          <div key={i} style={{background:c.bgInput,borderRadius:"12px",padding:"14px",marginBottom:"10px",border:`1px solid ${c.border}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+              <span style={{fontSize:"13px",fontWeight:"700",color:c.text}}>Mensagem {i+1} {i===0?"(imediata)":""}</span>
+              <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
+                {i>0&&<div style={{display:"flex",alignItems:"center",gap:"4px"}}>
+                  <Clock size={12} color={c.textMut}/>
+                  <select value={msg.delay_minutes} onChange={e=>{const n=[...seqMessages];n[i].delay_minutes=parseInt(e.target.value);setSeqMessages(n);}} style={{...inp(c),width:"auto",padding:"4px 8px",fontSize:"12px"}}>
+                    <option value="1">1 minuto</option>
+                    <option value="2">2 minutos</option>
+                    <option value="5">5 minutos</option>
+                    <option value="10">10 minutos</option>
+                    <option value="15">15 minutos</option>
+                    <option value="30">30 minutos</option>
+                    <option value="60">1 hora</option>
+                    <option value="120">2 horas</option>
+                    <option value="180">3 horas</option>
+                    <option value="360">6 horas</option>
+                    <option value="720">12 horas</option>
+                    <option value="1440">24 horas</option>
+                    <option value="2880">48 horas</option>
+                    <option value="4320">3 dias</option>
+                    <option value="10080">7 dias</option>
+                  </select>
+                  <span style={{fontSize:"11px",color:c.textMut}}>após a compra</span>
+                </div>}
+                {seqMessages.length>1&&<button onClick={()=>setSeqMessages(seqMessages.filter((_,idx)=>idx!==i))} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"2px"}}><X size={14}/></button>}
+              </div>
+            </div>
+            <textarea value={msg.message_template} onChange={e=>{const n=[...seqMessages];n[i].message_template=e.target.value;setSeqMessages(n);}} rows={4} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder={i===0?"Olá {nome}! Sua compra do {produto} foi aprovada!":"Mensagem de follow-up..."}/>
+            <div style={{display:"flex",gap:"4px",marginTop:"6px",flexWrap:"wrap"}}>
+              {["{nome}","{produto}","{valor}","{telefone_suporte}","{email_suporte}","{transacao}"].map(v=>(
+                <button key={v} onClick={()=>{const n=[...seqMessages];n[i].message_template+=v;setSeqMessages(n);}} style={{padding:"3px 8px",borderRadius:"6px",border:`1px solid ${c.border}`,background:c.bgCard,color:c.accent,fontSize:"11px",fontWeight:"600",cursor:"pointer"}}>{v}</button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <button onClick={()=>setSeqMessages([...seqMessages,{message_template:"",delay_minutes:seqMessages.length===1?5:60}])} style={{background:"none",border:"none",color:c.accent,fontSize:"13px",fontWeight:"600",cursor:"pointer",padding:"4px 0",display:"flex",alignItems:"center",gap:"4px"}}><Plus size={14}/>Adicionar mensagem na sequência</button>
       </div>
- 
+
+      {/* Preview */}
+      {seqMessages.length>0&&seqMessages[0].message_template&&<div style={{marginBottom:"18px"}}>
+        <label style={lbl(c)}>Pré-visualização (Mensagem 1)</label>
+        <div style={{background:dark?"#005c4b":"#dcf8c6",borderRadius:"12px 12px 12px 4px",padding:"12px 14px",maxWidth:"350px"}}>
+          <p style={{margin:0,fontSize:"13px",color:dark?"#e9edef":"#111b21",whiteSpace:"pre-wrap"}}>{seqMessages[0].message_template.replace(/\{nome\}/gi,"João Silva").replace(/\{produto\}/gi,"Curso XYZ").replace(/\{valor\}/gi,"R$ 197,00").replace(/\{telefone_suporte\}/gi,form.support_phone||"(11) 99988-7766").replace(/\{email_suporte\}/gi,form.support_email||"suporte@empresa.com").replace(/\{transacao\}/gi,"TRX123456")}</p>
+        </div>
+        {seqMessages.length>1&&<div style={{marginTop:"8px",fontSize:"12px",color:c.textMut}}>+ {seqMessages.length-1} mensagem(ns) agendada(s) na sequência</div>}
+      </div>}
+
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"18px"}}>
         <div><label style={lbl(c)}>Telefone de Suporte</label><input value={form.support_phone} onChange={e=>setForm({...form,support_phone:e.target.value})} placeholder="5511999887766" style={inp(c)}/></div>
         <div><label style={lbl(c)}>Email de Suporte</label><input value={form.support_email} onChange={e=>setForm({...form,support_email:e.target.value})} placeholder="suporte@empresa.com" style={inp(c)}/></div>
       </div>
- 
-      {/* Preview */}
-      {form.message_template&&<div style={{marginBottom:"18px"}}>
-        <label style={lbl(c)}>Pré-visualização</label>
-        <div style={{background:dark?"#005c4b":"#dcf8c6",borderRadius:"12px 12px 12px 4px",padding:"12px 14px",maxWidth:"350px"}}>
-          <p style={{margin:0,fontSize:"13px",color:dark?"#e9edef":"#111b21",whiteSpace:"pre-wrap"}}>{form.message_template.replace(/\{nome\}/gi,"João Silva").replace(/\{produto\}/gi,"Curso XYZ").replace(/\{valor\}/gi,"R$ 197,00").replace(/\{telefone_suporte\}/gi,form.support_phone||"(11) 99988-7766").replace(/\{email_suporte\}/gi,form.support_email||"suporte@empresa.com").replace(/\{transacao\}/gi,"TRX123456")}</p>
-        </div>
-      </div>}
- 
+
       <div style={{display:"flex",gap:"10px"}}>
         <button onClick={save} disabled={creating} style={btnP(c,creating)}>{creating?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<CheckCircle size={14}/>}{creating?"Salvando...":editId?"Salvar":"Criar Automação"}</button>
-        <button onClick={()=>{setShowCreate(false);setEditId(null);}} style={btnS(c)}>Cancelar</button>
+        <button onClick={()=>{setShowCreate(false);setEditId(null);setSeqMessages([{message_template:"",delay_minutes:0}]);}} style={btnS(c)}>Cancelar</button>
       </div>
     </div>}
- 
+
     {/* List */}
     {tab==="list"&&<div style={card(c)}>
       <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Suas Automações</h3>
@@ -352,7 +410,7 @@ function AutomationsPage(){
         </tr>)}
       </tbody></table></div>}
     </div>}
- 
+
     {/* Logs */}
     {tab==="logs"&&<div style={card(c)}>
       <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico de Envios Automáticos</h3>
