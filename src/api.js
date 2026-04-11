@@ -58,10 +58,12 @@ export const messagesApi = {
 };
 
 export const campaignsApi = {
+  list: () => api.get('/campaigns'),
   create: (data) => api.post('/campaigns', data),
-  start: (id, data = {}) => api.post(`/campaigns/${id}/start`, data),
+  start: (id, data) => api.post(`/campaigns/${id}/start`, data),
   pause: (id) => api.post(`/campaigns/${id}/pause`),
-  list: (params = {}) => api.get('/campaigns', { params }),
+  cancel: (id) => api.post(`/campaigns/${id}/cancel`),
+  update: (id, data) => api.put(`/campaigns/${id}`, data),
   get: (id) => api.get(`/campaigns/${id}`),
   delete: (id) => api.delete(`/campaigns/${id}`),
 };
