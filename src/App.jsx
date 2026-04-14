@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi, profileApi } from "./api";
 import { Analytics } from "@vercel/analytics/react"
-import { track } from "@vercel/analytics";
 
 // ==================== THEME ====================
 const ThemeContext = createContext();
@@ -1758,7 +1757,7 @@ function MainContent({page,user,onToggleSidebar,onProfileUpdate}){
 
 function App(){
   const[user,setUser]=useState(()=>{try{const u=localStorage.getItem('zapechat_user');return u?JSON.parse(u):null;}catch{return null;}});
-  const[page,setPage]=useState(()=>localStorage.getItem("zapechat_page")||"dashboard");useEffect(()=>{localStorage.setItem("zapechat_page",page);track("page_view",{page});},[page]);const[collapsed,setCollapsed]=useState(false);
+  const[page,setPage]=useState(()=>localStorage.getItem("zapechat_page")||"dashboard");useEffect(()=>{localStorage.setItem("zapechat_page",page);window.history.replaceState(null,"","/"+page);},[page]);const[collapsed,setCollapsed]=useState(false);
 
   useEffect(()=>{const token=localStorage.getItem('zapechat_token');if(token&&user){authApi.me().then(({data})=>{setUser(data.user);localStorage.setItem('zapechat_user',JSON.stringify(data.user));}).catch(()=>{setUser(null);localStorage.removeItem('zapechat_token');localStorage.removeItem('zapechat_user');});}},[]);
 
