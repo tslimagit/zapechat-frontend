@@ -416,7 +416,7 @@ function AutomationsPage(){
       <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico de Envios Automáticos</h3>
       {logs.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhum envio automático registrado ainda.</p>:
       <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
-        {["Data","Plataforma","Evento","Comprador","Telefone","Produto","Status"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
+        {["Data","Plataforma","Evento","Comprador","Telefone","Produto","Status","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
       </tr></thead><tbody>
         {logs.map(l=><tr key={l.id}>
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.textMut}}>{l.created_at?new Date(l.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</td>
@@ -426,6 +426,7 @@ function AutomationsPage(){
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.textMut,fontFamily:"monospace"}}>{l.buyer_phone||"—"}</td>
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.textSec}}>{l.product_name||"—"}</td>
           <td style={{padding:"8px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:l.status==="sent"?c.okSoft:l.status==="failed"?c.dangerSoft:c.warnSoft,color:statusColor(l.status)}}>{statusLabel(l.status)}</span></td>
+          <td style={{padding:"8px 12px"}}>{l.status==="failed"&&<button onClick={async()=>{try{await automationsApi.resend(l.id);setToast({msg:`Reenviado para ${l.buyer_phone}!`,type:"success"});load();}catch(e){setToast({msg:e.response?.data?.error||"Falha ao reenviar",type:"error"});}}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px",display:"flex",alignItems:"center",gap:"4px",fontSize:"11px",fontWeight:"600"}}><RefreshCw size={13}/>Reenviar</button>}</td>
         </tr>)}
       </tbody></table></div>}
     </div>}
