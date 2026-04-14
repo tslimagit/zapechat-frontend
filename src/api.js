@@ -144,6 +144,7 @@ export const automationsApi = {
   getMessages: (id) => api.get(`/automations/${id}/messages`),
   saveMessages: (id, messages) => api.post(`/automations/${id}/messages`, { messages }),
   getQueue: (id) => api.get(`/automations/${id}/queue`),
+  resend: (logId) => api.post(`/automations/logs/${logId}/resend`),
 };
 
 // ==========================================
