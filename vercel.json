@@ -6,6 +6,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://be.zapechat.cloud/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
