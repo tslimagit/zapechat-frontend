@@ -6,6 +6,7 @@ import {
   Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight, Camera, Brain
 } from "lucide-react";
 import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi, profileApi } from "./api";
+import { Analytics } from "@vercel/analytics/react"
 
 // ==================== THEME ====================
 const ThemeContext = createContext();
