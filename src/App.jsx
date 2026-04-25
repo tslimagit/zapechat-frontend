@@ -434,59 +434,154 @@ function AutomationsPage(){
   </div>);
 }
 
-// ==================== QR CODE PAGE ====================
+// ==========================================
+// NOVA QrCodePage COMPLETA - Substitua inteira no App.jsx
+// Importar instanceApi no topo
+// ==========================================
+ 
 function QrCodePage(){
   const{dark}=useTheme();const c=C(dark);
-	const[qrcode,setQrcode]=useState(null);const[status,setStatus]=useState("loading");const[loading,setLoading]=useState(false);const[disconnecting,setDisconnecting]=useState(false);const[toast,setToast]=useState(null);
-
+  const[qrcode,setQrcode]=useState(null);const[status,setStatus]=useState("loading");const[loading,setLoading]=useState(false);
+  const[disconnecting,setDisconnecting]=useState(false);const[toast,setToast]=useState(null);
+  const[tab,setTab]=useState("connection"); // connection, settings, webhook
+  const[settings,setSettings]=useState(null);const[savingSettings,setSavingSettings]=useState(false);
+  const[webhook,setWebhook]=useState(null);const[savingWebhook,setSavingWebhook]=useState(false);
+  const[loadingConfig,setLoadingConfig]=useState(false);
+ 
   const disconnect=async()=>{setDisconnecting(true);try{await authApi.disconnect();setStatus("disconnected");setQrcode(null);setToast({msg:"WhatsApp desconectado!",type:"success"});}catch(e){setToast({msg:"Erro ao desconectar",type:"error"});}finally{setDisconnecting(false);}};
-
-  const checkStatus=async()=>{
-    try{const{data}=await authApi.connectionStatus();setStatus(data.connected?"connected":data.status);}catch(e){setStatus("error");}
+ 
+  const checkStatus=async()=>{try{const{data}=await authApi.connectionStatus();setStatus(data.connected?"connected":data.status);}catch(e){setStatus("error");}};
+  const getQr=async()=>{setLoading(true);try{const{data}=await authApi.qrcode();setQrcode(data.qrcode||null);setStatus("waiting_scan");}catch(e){setStatus("error");}finally{setLoading(false);}};
+ 
+  useEffect(()=>{checkStatus();const i=setInterval(checkStatus,5000);return()=>clearInterval(i);},[]);
+  useEffect(()=>{if(status==="connected"||status==="loading")return;if(!qrcode)return;const i=setInterval(()=>{getQr();},15000);return()=>clearInterval(i);},[status,qrcode]);
+ 
+  // Load settings/webhook when tab changes
+  const loadSettings=async()=>{setLoadingConfig(true);try{const{data}=await instanceApi.getSettings();setSettings(data.settings||{});}catch(e){setToast({msg:"Erro ao carregar configurações",type:"error"});}finally{setLoadingConfig(false);}};
+  const loadWebhook=async()=>{setLoadingConfig(true);try{const{data}=await instanceApi.getWebhook();setWebhook(data.webhook||{});}catch(e){setToast({msg:"Erro ao carregar webhook",type:"error"});}finally{setLoadingConfig(false);}};
+ 
+  useEffect(()=>{if(tab==="settings"&&!settings)loadSettings();if(tab==="webhook"&&!webhook)loadWebhook();},[tab]);
+ 
+  const saveSettings=async()=>{setSavingSettings(true);try{const{data}=await instanceApi.updateSettings(settings);setSettings(data.settings||settings);setToast({msg:"Configurações salvas!",type:"success"});}catch(e){setToast({msg:"Erro ao salvar",type:"error"});}finally{setSavingSettings(false);}};
+ 
+  const saveWebhook=async()=>{setSavingWebhook(true);try{const{data}=await instanceApi.updateWebhook(webhook);setToast({msg:"Webhook salva!",type:"success"});}catch(e){setToast({msg:"Erro ao salvar",type:"error"});}finally{setSavingWebhook(false);}};
+ 
+  const allEvents=["MESSAGES_UPSERT","MESSAGES_UPDATE","MESSAGES_DELETE","SEND_MESSAGE","CONTACTS_SET","CONTACTS_UPSERT","CONTACTS_UPDATE","PRESENCE_UPDATE","CHATS_SET","CHATS_UPSERT","CHATS_UPDATE","CHATS_DELETE","GROUPS_UPSERT","GROUPS_UPDATE","GROUP_PARTICIPANTS_UPDATE","CONNECTION_UPDATE","LABELS_EDIT","LABELS_ASSOCIATION","CALL","TYPEBOT_START","TYPEBOT_CHANGE_STATUS"];
+ 
+  const toggleEvent=(evt)=>{
+    const current=webhook?.events||[];
+    if(current.includes(evt)){setWebhook({...webhook,events:current.filter(e=>e!==evt)});}
+    else{setWebhook({...webhook,events:[...current,evt]});}
   };
-
-  const getQr=async()=>{
-    setLoading(true);
-    try{const{data}=await authApi.qrcode();setQrcode(data.qrcode||null);setStatus("waiting_scan");}catch(e){setStatus("error");}finally{setLoading(false);}
-  };
-
-useEffect(()=>{checkStatus();const i=setInterval(checkStatus,5000);return()=>clearInterval(i);},[]);
-
-  // Auto-refresh QR Code a cada 15 segundos enquanto não conectar
-  useEffect(()=>{
-    if(status==="connected"||status==="loading")return;
-    if(!qrcode)return;
-    const i=setInterval(()=>{getQr();},15000);
-    return()=>clearInterval(i);
-  },[status,qrcode]);
-
-if(status==="connected")return(
-    <div style={{padding:"24px",display:"flex",justifyContent:"center"}}>
-      {toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
-      <div style={{...card(c),maxWidth:"500px",textAlign:"center",padding:"40px"}}>
-        <div style={{width:"80px",height:"80px",borderRadius:"50%",background:c.okSoft,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}><Wifi size={36} color={c.ok}/></div>
-        <h2 style={{color:c.text,fontSize:"22px",fontWeight:"700",margin:"0 0 8px"}}>WhatsApp Conectado!</h2>
-        <p style={{color:c.textMut,fontSize:"14px",margin:"0 0 24px"}}>Seu WhatsApp está pronto para enviar mensagens.</p>
-        <button onClick={disconnect} disabled={disconnecting} style={{...btnS(c),color:c.danger,borderColor:c.danger+"44"}}>{disconnecting?<RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/>:<WifiOff size={16}/>}{disconnecting?"Desconectando...":"Desconectar WhatsApp"}</button>
-      </div>
+ 
+  const settingsItems=[
+    {key:"rejectCall",label:"Rejeitar Chamadas",desc:"Rejeita automaticamente chamadas de voz/vídeo"},
+    {key:"groupsIgnore",label:"Ignorar Grupos",desc:"Não recebe mensagens de grupos"},
+    {key:"alwaysOnline",label:"Sempre Online",desc:"Mostra status online permanentemente"},
+    {key:"readMessages",label:"Ler Mensagens",desc:"Marca mensagens como lidas automaticamente"},
+    {key:"readStatus",label:"Ler Status",desc:"Visualiza status automaticamente"},
+    {key:"syncFullHistory",label:"Sincronizar Histórico",desc:"Sincroniza todo o histórico de mensagens"},
+  ];
+ 
+  return(<div style={{padding:"24px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
+ 
+    {/* Tabs */}
+    <div style={{display:"flex",gap:"8px",marginBottom:"20px"}}>
+      <button onClick={()=>setTab("connection")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="connection"?c.accent:c.bgInput,color:tab==="connection"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Conexão</button>
+      {status==="connected"&&<>
+        <button onClick={()=>setTab("settings")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="settings"?c.accent:c.bgInput,color:tab==="settings"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Configurações</button>
+        <button onClick={()=>setTab("webhook")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="webhook"?c.accent:c.bgInput,color:tab==="webhook"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Webhooks</button>
+      </>}
     </div>
-  );
-
-  return(
-    <div style={{padding:"24px",display:"flex",justifyContent:"center"}}>
-      <div style={{...card(c),maxWidth:"500px",textAlign:"center",padding:"40px"}}>
-        <div style={{width:"80px",height:"80px",borderRadius:"50%",background:c.warnSoft,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}><WifiOff size={36} color={c.warn}/></div>
-        <h2 style={{color:c.text,fontSize:"22px",fontWeight:"700",margin:"0 0 8px"}}>Conectar WhatsApp</h2>
-        <p style={{color:c.textMut,fontSize:"14px",margin:"0 0 24px"}}>Escaneie o QR Code abaixo com seu WhatsApp</p>
-        {qrcode?<div style={{marginBottom:"24px"}}><img src={qrcode.startsWith('data:')?qrcode:`data:image/png;base64,${qrcode}`} alt="QR Code" style={{width:"280px",height:"280px",borderRadius:"12px",border:`2px solid ${c.border}`}}/></div>
-        :<button onClick={getQr} disabled={loading} style={{...btnP(c,loading),margin:"0 auto 24px"}}>{loading?<RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/>:<QrCode size={16}/>}{loading?"Gerando...":"Gerar QR Code"}</button>}
-        <button onClick={getQr} disabled={loading} style={btnS(c)}><RefreshCw size={14}/>Atualizar QR Code</button>
-        <p style={{color:c.textMut,fontSize:"12px",marginTop:"16px"}}>Abra o WhatsApp → Menu (⋮) → Dispositivos conectados → Conectar dispositivo</p>
-      </div>
-    </div>
-  );
+ 
+    {/* Connection Tab */}
+    {tab==="connection"&&<>
+      {status==="connected"?
+        <div style={{...card(c),maxWidth:"500px",margin:"0 auto",textAlign:"center",padding:"40px"}}>
+          <div style={{width:"80px",height:"80px",borderRadius:"50%",background:c.okSoft,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}><Wifi size={36} color={c.ok}/></div>
+          <h2 style={{color:c.text,fontSize:"22px",fontWeight:"700",margin:"0 0 8px"}}>WhatsApp Conectado!</h2>
+          <p style={{color:c.textMut,fontSize:"14px",margin:"0 0 24px"}}>Seu WhatsApp está pronto para enviar mensagens.</p>
+          <button onClick={disconnect} disabled={disconnecting} style={{...btnS(c),color:c.danger,borderColor:c.danger+"44"}}>{disconnecting?<RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/>:<WifiOff size={16}/>}{disconnecting?"Desconectando...":"Desconectar WhatsApp"}</button>
+        </div>
+      :
+        <div style={{...card(c),maxWidth:"500px",margin:"0 auto",textAlign:"center",padding:"40px"}}>
+          <div style={{width:"80px",height:"80px",borderRadius:"50%",background:c.warnSoft,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}><WifiOff size={36} color={c.warn}/></div>
+          <h2 style={{color:c.text,fontSize:"22px",fontWeight:"700",margin:"0 0 8px"}}>Conectar WhatsApp</h2>
+          <p style={{color:c.textMut,fontSize:"14px",margin:"0 0 24px"}}>Escaneie o QR Code abaixo com seu WhatsApp</p>
+          {qrcode?<div style={{marginBottom:"24px"}}><img src={qrcode.startsWith('data:')?qrcode:`data:image/png;base64,${qrcode}`} alt="QR Code" style={{width:"280px",height:"280px",borderRadius:"12px",border:`2px solid ${c.border}`}}/></div>
+          :<button onClick={getQr} disabled={loading} style={{...btnP(c,loading),margin:"0 auto 24px"}}>{loading?<RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/>:<QrCode size={16}/>}{loading?"Gerando...":"Gerar QR Code"}</button>}
+          <button onClick={getQr} disabled={loading} style={btnS(c)}><RefreshCw size={14}/>Atualizar QR Code</button>
+          <p style={{color:c.textMut,fontSize:"12px",marginTop:"16px"}}>Abra o WhatsApp → Menu (⋮) → Dispositivos conectados → Conectar dispositivo</p>
+        </div>
+      }
+    </>}
+ 
+    {/* Settings Tab */}
+    {tab==="settings"&&<div style={{...card(c),maxWidth:"600px",margin:"0 auto"}}>
+      <h3 style={{margin:"0 0 20px",fontSize:"18px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px"}}><Settings size={18} color={c.accent}/>Configurações da Instância</h3>
+ 
+      {loadingConfig?<div style={{textAlign:"center",padding:"30px"}}><RefreshCw size={20} color={c.textMut} style={{animation:"spin 1s linear infinite"}}/></div>:settings?<>
+        {settingsItems.map(item=>(
+          <div key={item.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0",borderBottom:`1px solid ${c.border}`}}>
+            <div>
+              <div style={{fontSize:"14px",fontWeight:"600",color:c.text}}>{item.label}</div>
+              <div style={{fontSize:"12px",color:c.textMut,marginTop:"2px"}}>{item.desc}</div>
+            </div>
+            <button onClick={()=>setSettings({...settings,[item.key]:!settings[item.key]})} style={{background:"none",border:"none",cursor:"pointer",color:settings[item.key]?c.ok:c.textMut}}>
+              {settings[item.key]?<ToggleRight size={28}/>:<ToggleLeft size={28}/>}
+            </button>
+          </div>
+        ))}
+ 
+        {settings.rejectCall&&<div style={{marginTop:"14px"}}><label style={lbl(c)}>Mensagem ao rejeitar chamada</label>
+          <input value={settings.msgCall||""} onChange={e=>setSettings({...settings,msgCall:e.target.value})} placeholder="Ex: Não posso atender agora, envie uma mensagem." style={inp(c)}/>
+        </div>}
+ 
+        <button onClick={saveSettings} disabled={savingSettings} style={{...btnP(c,savingSettings),marginTop:"20px"}}>{savingSettings?"Salvando...":"Salvar Configurações"}</button>
+      </>:<p style={{color:c.textMut,textAlign:"center"}}>Erro ao carregar</p>}
+    </div>}
+ 
+    {/* Webhook Tab */}
+    {tab==="webhook"&&<div style={{...card(c),maxWidth:"700px",margin:"0 auto"}}>
+      <h3 style={{margin:"0 0 20px",fontSize:"18px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px"}}><Globe size={18} color={c.accent}/>Configuração de Webhook</h3>
+ 
+      {loadingConfig?<div style={{textAlign:"center",padding:"30px"}}><RefreshCw size={20} color={c.textMut} style={{animation:"spin 1s linear infinite"}}/></div>:webhook?<>
+        <div style={{marginBottom:"16px"}}>
+          <label style={lbl(c)}>URL do Webhook</label>
+          <input value={webhook.url||""} onChange={e=>setWebhook({...webhook,url:e.target.value})} placeholder="https://seu-servidor.com/webhook" style={inp(c)}/>
+          <span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>URL onde os eventos serão enviados</span>
+        </div>
+ 
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",marginBottom:"16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px",background:c.bgInput,borderRadius:"10px",border:`1px solid ${c.border}`}}>
+            <div><div style={{fontSize:"13px",fontWeight:"600",color:c.text}}>Webhook Ativa</div></div>
+            <button onClick={()=>setWebhook({...webhook,enabled:!webhook.enabled})} style={{background:"none",border:"none",cursor:"pointer",color:webhook.enabled?c.ok:c.textMut}}>
+              {webhook.enabled?<ToggleRight size={24}/>:<ToggleLeft size={24}/>}
+            </button>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px",background:c.bgInput,borderRadius:"10px",border:`1px solid ${c.border}`}}>
+            <div><div style={{fontSize:"13px",fontWeight:"600",color:c.text}}>Base64 na Webhook</div></div>
+            <button onClick={()=>setWebhook({...webhook,webhookBase64:!webhook.webhookBase64})} style={{background:"none",border:"none",cursor:"pointer",color:webhook.webhookBase64?c.ok:c.textMut}}>
+              {webhook.webhookBase64?<ToggleRight size={24}/>:<ToggleLeft size={24}/>}
+            </button>
+          </div>
+        </div>
+ 
+        <div style={{marginBottom:"16px"}}>
+          <label style={lbl(c)}>Eventos ({(webhook.events||[]).length} selecionados)</label>
+          <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+            {allEvents.map(evt=>{
+              const active=(webhook.events||[]).includes(evt);
+              return<button key={evt} onClick={()=>toggleEvent(evt)} style={{padding:"5px 10px",borderRadius:"8px",border:`1px solid ${active?c.accent:c.border}`,background:active?c.accentSoft:"transparent",color:active?c.accent:c.textMut,fontSize:"11px",fontWeight:"600",cursor:"pointer"}}>{evt}</button>;
+            })}
+          </div>
+        </div>
+ 
+        <button onClick={saveWebhook} disabled={savingWebhook} style={{...btnP(c,savingWebhook),marginTop:"8px"}}>{savingWebhook?"Salvando...":"Salvar Webhook"}</button>
+      </>:<p style={{color:c.textMut,textAlign:"center"}}>Erro ao carregar</p>}
+    </div>}
+  </div>);
 }
-
 // ==================== ADMIN PANEL ====================
 function AdminPage(){
   const{dark}=useTheme();const c=C(dark);
