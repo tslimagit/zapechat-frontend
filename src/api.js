@@ -89,6 +89,13 @@ export const groupsApi = {
   leave: (jid) => api.delete(`/groups/${jid}/leave`),
 };
 
+export const instanceApi = {
+  getSettings: () => api.get('/instance/settings'),
+  updateSettings: (data) => api.put('/instance/settings', data),
+  getWebhook: () => api.get('/instance/webhook'),
+  updateWebhook: (data) => api.put('/instance/webhook', data),
+};
+
 export const groupEventsApi = {
   list: (params = {}) => api.get('/group-events', { params }),
   groups: () => api.get('/group-events/groups'),
