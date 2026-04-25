@@ -210,7 +210,7 @@ function AutomationsPage(){
 
   const[form,setForm]=useState({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});
 
-  const platforms=[{id:"hotmart",label:"Hotmart"},{id:"eduzz",label:"Eduzz"},{id:"kiwify",label:"Kiwify"},{id:"voomp",label:"Voomp"},{id:"guru",label:"Guru"}];
+  const platforms=[{id:"hotmart",label:"Hotmart"},{id:"eduzz",label:"Eduzz"},{id:"kiwify",label:"Kiwify"},{id:"voomp",label:"Voomp"},{id:"guru",label:"Guru"},{id:"activecampaign",label:"ActiveCampaign"}];
   const events=[
     {id:"purchase_approved",label:"Compra Aprovada",emoji:"✅"},
     {id:"boleto_generated",label:"Boleto Gerado",emoji:"📄"},
