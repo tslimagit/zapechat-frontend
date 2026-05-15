@@ -5,7 +5,7 @@ import {
   RefreshCw, Play, Pause, Hash, Globe, Phone, Image, FileText, Video, Mic, Calendar,
   Clock, X, Paperclip, UserPlus, Shield, QrCode, Wifi, WifiOff, Trash2, Edit, ToggleLeft, ToggleRight, Camera, Brain
 } from "lucide-react";
-import { authApi, messagesApi, campaignsApi, groupsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi, profileApi, instanceApi } from "./api";
+import { authApi, messagesApi, campaignsApi, groupsApi, groupCampaignsApi, contactsApi, reportsApi, instancesApi, automationsApi, uploadApi, aiAssistantsApi, apiKeysApi, trainingSourcesApi, groupEventsApi, profileApi, instanceApi } from "./api";
 import { Analytics } from "@vercel/analytics/react"
 
 // ==================== THEME ====================
