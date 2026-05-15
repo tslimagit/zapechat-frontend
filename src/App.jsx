@@ -659,7 +659,7 @@ function AdminPage(){
 function Sidebar({active,onNavigate,collapsed,user}){
   const{dark,toggle}=useTheme();const c=C(dark);
   const isAdmin=user?.role==="admin";
-  const nav=[{id:"dashboard",icon:BarChart3,label:"Dashboard"},{id:"qrcode",icon:QrCode,label:"Contas"},{id:"send",icon:Send,label:"Enviar Mensagem"},{id:"mass",icon:Mail,label:"Disparo em Massa"},{id:"groups",icon:Users,label:"Disparo em Grupos"},{id:"reports",icon:PieChart,label:"Relatórios"},{id:"contacts",icon:Phone,label:"Contatos"},...(isAdmin?[{id:"admin",icon:Shield,label:"Admin"}]:[]),{id:"ai",icon:Brain,label:"Assistente IA"},{id:"group-events",icon:Users,label:"Monitor Grupos"},{id:"automations",icon:Zap,label:"Automações"},{id:"settings",icon:Settings,label:"Configurações"}];
+  const nav=[{id:"dashboard",icon:BarChart3,label:"Dashboard"},{id:"qrcode",icon:QrCode,label:"Contas"},{id:"send",icon:Send,label:"Enviar Mensagem"},{id:"mass",icon:Mail,label:"Disparo em Massa"},{id:"groups",icon:Users,label:"Disparo em Grupos"},{id:"group-campaigns",icon:Zap,label:"Campanhas de Grupos"},{id:"reports",icon:PieChart,label:"Relatórios"},{id:"contacts",icon:Phone,label:"Contatos"},...(isAdmin?[{id:"admin",icon:Shield,label:"Admin"}]:[]),{id:"ai",icon:Brain,label:"Assistente IA"},{id:"group-events",icon:Users,label:"Monitor Grupos"},{id:"automations",icon:Zap,label:"Automações"},{id:"settings",icon:Settings,label:"Configurações"}];
   const navBtn=(id,Icon,label,isActive,color)=>(<button key={id} onClick={()=>onNavigate(id)} style={{width:"100%",padding:collapsed?"12px 0":"11px 14px",display:"flex",alignItems:"center",justifyContent:collapsed?"center":"flex-start",gap:"12px",background:isActive?c.accentSoft:"transparent",border:"none",borderRadius:"10px",cursor:"pointer",color:color||(isActive?c.accent:c.textSec),fontSize:"13px",fontWeight:isActive?"600":"500",marginBottom:"2px",position:"relative",transition:"all 0.15s"}} onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background=c.bgCardHover;}} onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background="transparent";}}>
     {isActive&&!collapsed&&<div style={{position:"absolute",left:0,top:"50%",transform:"translateY(-50%)",width:"3px",height:"20px",borderRadius:"4px",background:c.accent}}/>}<Icon size={19}/>{!collapsed&&label}</button>);
   return(<div style={{width:collapsed?"68px":"250px",minHeight:"100vh",background:c.bgSidebar,borderRight:`1px solid ${c.border}`,display:"flex",flexDirection:"column",transition:"width 0.3s",flexShrink:0}}>
@@ -1545,6 +1545,233 @@ function GroupEventsPage(){
 }
 
 // ==========================================
+// NOVA GroupCampaignsPage - Adicionar no App.jsx
+// ==========================================
+ 
+function GroupCampaignsPage(){
+  const{dark}=useTheme();const c=C(dark);
+  const[campaigns,setCampaigns]=useState([]);const[groups,setGroups]=useState([]);
+  const[loading,setLoading]=useState(true);const[toast,setToast]=useState(null);
+  const[showCreate,setShowCreate]=useState(false);const[creating,setCreating]=useState(false);
+  const[editId,setEditId]=useState(null);
+  const[selectedCampaign,setSelectedCampaign]=useState(null);const[campaignDetail,setCampaignDetail]=useState(null);
+  const[loadingDetail,setLoadingDetail]=useState(false);
+  const[tab,setTab]=useState("list");
+ 
+  // Form state
+  const[form,setForm]=useState({name:"",slug:"",description:"",max_members_per_group:250,welcome_message:"",meta_pixel_id:""});
+ 
+  // Add groups state
+  const[showAddGroups,setShowAddGroups]=useState(false);const[selectedGroups,setSelectedGroups]=useState([]);
+ 
+  // Mass send state
+  const[showMassSend,setShowMassSend]=useState(false);const[massText,setMassText]=useState("");const[massMedia,setMassMedia]=useState(null);
+  const[massSending,setMassSending]=useState(false);const[massMentionAll,setMassMentionAll]=useState(false);
+ 
+  const load=async()=>{try{const[cRes,gRes]=await Promise.all([groupCampaignsApi.list(),groupsApi.list()]);setCampaigns(cRes.data.campaigns||[]);setGroups(gRes.data.groups||[]);}catch(e){}finally{setLoading(false);}};
+  useEffect(()=>{load();},[]);
+ 
+  const loadDetail=async(id)=>{setLoadingDetail(true);try{const{data}=await groupCampaignsApi.stats(id);setCampaignDetail(data);}catch(e){setToast({msg:"Erro ao carregar",type:"error"});}finally{setLoadingDetail(false);}};
+ 
+  const generateSlug=(name)=>name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+ 
+  const save=async()=>{
+    if(!form.name||!form.slug){setToast({msg:"Preencha nome e slug",type:"error"});return;}
+    setCreating(true);
+    try{
+      if(editId){
+        await groupCampaignsApi.update(editId,form);setToast({msg:"Campanha atualizada!",type:"success"});
+      }else{
+        await groupCampaignsApi.create(form);setToast({msg:"Campanha criada!",type:"success"});
+      }
+      setShowCreate(false);setEditId(null);setForm({name:"",slug:"",description:"",max_members_per_group:250,welcome_message:"",meta_pixel_id:""});load();
+    }catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}finally{setCreating(false);}
+  };
+ 
+  const startEdit=(camp)=>{
+    setForm({name:camp.name,slug:camp.slug,description:camp.description||"",max_members_per_group:camp.max_members_per_group||250,welcome_message:camp.welcome_message||"",meta_pixel_id:camp.meta_pixel_id||""});
+    setEditId(camp.id);setShowCreate(true);
+  };
+ 
+  const deleteCampaign=async(camp)=>{
+    if(!confirm(`Remover campanha "${camp.name}"?`))return;
+    try{await groupCampaignsApi.delete(camp.id);setToast({msg:"Removida!",type:"success"});if(selectedCampaign?.id===camp.id){setSelectedCampaign(null);setCampaignDetail(null);}load();}catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  const toggleActive=async(camp)=>{
+    try{await groupCampaignsApi.update(camp.id,{is_active:!camp.is_active});setToast({msg:camp.is_active?"Desativada":"Ativada!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  const addGroupsToCampaign=async()=>{
+    if(selectedGroups.length===0)return;
+    try{
+      const groupsToAdd=selectedGroups.map(jid=>{const g=groups.find(gr=>gr.group_jid===jid);return{group_jid:jid,group_name:g?.name||jid,current_members:g?.member_count||0};});
+      await groupCampaignsApi.addGroups(selectedCampaign.id,groupsToAdd);
+      setToast({msg:`${selectedGroups.length} grupo(s) adicionado(s)!`,type:"success"});
+      setShowAddGroups(false);setSelectedGroups([]);loadDetail(selectedCampaign.id);
+    }catch(e){setToast({msg:"Erro ao adicionar",type:"error"});}
+  };
+ 
+  const removeGroupFromCampaign=async(groupId)=>{
+    try{await groupCampaignsApi.removeGroup(selectedCampaign.id,groupId);setToast({msg:"Grupo removido!",type:"success"});loadDetail(selectedCampaign.id);}catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  const updateMembers=async()=>{
+    try{setToast({msg:"Atualizando contagem...",type:"success"});await groupCampaignsApi.updateMembers(selectedCampaign.id);loadDetail(selectedCampaign.id);setToast({msg:"Contagem atualizada!",type:"success"});}catch(e){setToast({msg:"Erro",type:"error"});}
+  };
+ 
+  const massSend=async()=>{
+    if(!massText&&!massMedia){setToast({msg:"Preencha a mensagem",type:"error"});return;}
+    setMassSending(true);
+    try{
+      const data={text:massText||'',mentionsEveryOne:massMentionAll};
+      if(massMedia){data.media=massMedia.isUrl?massMedia.url:(massMedia.url||'');data.mediaType=massMedia.type;data.mimetype=massMedia.file?.type||'image/png';data.fileName=massMedia.name||'file';data.caption=massText||'';}
+      await groupCampaignsApi.massSend(selectedCampaign.id,data);
+      setToast({msg:"Disparo iniciado!",type:"success"});setShowMassSend(false);setMassText("");setMassMedia(null);
+    }catch(e){setToast({msg:"Erro",type:"error"});}finally{setMassSending(false);}
+  };
+ 
+  const copyLink=(slug)=>{const url=`https://link.zapechat.cloud/${slug}`;navigator.clipboard?.writeText(url);setToast({msg:"Link copiado!",type:"success"});};
+ 
+  const selectCampaign=(camp)=>{setSelectedCampaign(camp);setTab("detail");loadDetail(camp.id);};
+ 
+  if(loading)return<div style={{padding:"40px",textAlign:"center",color:c.textMut}}><RefreshCw size={24} style={{animation:"spin 1s linear infinite"}}/></div>;
+ 
+  return(<div style={{padding:"24px"}}>{toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
+ 
+    {/* Add Groups Modal */}
+    {showAddGroups&&<div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={()=>setShowAddGroups(false)}>
+      <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"500px",width:"100%",border:`1px solid ${c.border}`,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{margin:"0 0 16px",fontSize:"17px",fontWeight:"700",color:c.text}}>Adicionar Grupos</h3>
+        <div style={{maxHeight:"400px",overflowY:"auto",border:`1px solid ${c.border}`,borderRadius:"10px",marginBottom:"16px"}}>
+          {groups.map(g=>{const checked=selectedGroups.includes(g.group_jid);const alreadyIn=campaignDetail?.groups?.some(cg=>cg.group_jid===g.group_jid);return<div key={g.id} onClick={()=>{if(alreadyIn)return;setSelectedGroups(prev=>prev.includes(g.group_jid)?prev.filter(j=>j!==g.group_jid):[...prev,g.group_jid]);}} style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 12px",cursor:alreadyIn?"default":"pointer",background:checked?c.accentSoft:alreadyIn?c.bgInput:"transparent",borderBottom:`1px solid ${c.border}`,opacity:alreadyIn?0.5:1}}>
+            <input type="checkbox" checked={checked} disabled={alreadyIn} readOnly style={{accentColor:c.accent}}/>
+            <div><div style={{fontSize:"13px",fontWeight:"600",color:c.text}}>{g.name||g.group_jid}</div><div style={{fontSize:"11px",color:c.textMut}}>{g.member_count||0} membros {alreadyIn?"(já adicionado)":""}</div></div>
+          </div>;})}
+        </div>
+        <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}><button onClick={()=>setShowAddGroups(false)} style={btnS(c)}>Cancelar</button><button onClick={addGroupsToCampaign} disabled={selectedGroups.length===0} style={btnP(c,selectedGroups.length===0)}>Adicionar {selectedGroups.length} grupo(s)</button></div>
+      </div>
+    </div>}
+ 
+    {/* Mass Send Modal */}
+    {showMassSend&&<div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={()=>setShowMassSend(false)}>
+      <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"500px",width:"100%",border:`1px solid ${c.border}`}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{margin:"0 0 16px",fontSize:"17px",fontWeight:"700",color:c.text}}>Disparo para {campaignDetail?.groups?.length||0} grupos</h3>
+        <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Mensagem</label><textarea value={massText} onChange={e=>setMassText(e.target.value)} rows={5} style={{...inp(c),resize:"vertical"}} placeholder="Mensagem para todos os grupos da campanha..."/></div>
+        <label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Mídia (opcional)</label>
+        <MediaPicker selected={massMedia} onSelect={setMassMedia} onRemove={()=>setMassMedia(null)}/>
+        <label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer",marginBottom:"16px"}}><input type="checkbox" checked={massMentionAll} onChange={e=>setMassMentionAll(e.target.checked)} style={{accentColor:c.accent}}/>Mencionar todos</label>
+        <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}><button onClick={()=>setShowMassSend(false)} style={btnS(c)}>Cancelar</button><button onClick={massSend} disabled={massSending||(!massText&&!massMedia)} style={btnP(c,massSending)}>{massSending?"Enviando...":"Disparar"}</button></div>
+      </div>
+    </div>}
+ 
+    {/* Header */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}>
+      <div style={{display:"flex",gap:"8px"}}>
+        <button onClick={()=>{setTab("list");setSelectedCampaign(null);}} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="list"?c.accent:c.bgInput,color:tab==="list"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Campanhas</button>
+        {selectedCampaign&&<button onClick={()=>setTab("detail")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="detail"?c.accent:c.bgInput,color:tab==="detail"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>{selectedCampaign.name}</button>}
+      </div>
+      <button onClick={()=>{setShowCreate(true);setEditId(null);setForm({name:"",slug:"",description:"",max_members_per_group:250,welcome_message:"",meta_pixel_id:""});}} style={btnP(c,false)}><Plus size={14}/>Nova Campanha</button>
+    </div>
+ 
+    {/* Create/Edit Form */}
+    {showCreate&&<div style={{...card(c),marginBottom:"16px"}}>
+      <h3 style={{margin:"0 0 16px",fontSize:"16px",fontWeight:"700",color:c.text}}>{editId?"Editar":"Nova"} Campanha de Grupos</h3>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"14px"}}>
+        <div><label style={lbl(c)}>Nome</label><input value={form.name} onChange={e=>{setForm({...form,name:e.target.value,slug:editId?form.slug:generateSlug(e.target.value)});}} placeholder="Ex: Imersão NR-1" style={inp(c)}/></div>
+        <div><label style={lbl(c)}>Slug (URL)</label><div style={{display:"flex",alignItems:"center",gap:"4px"}}><span style={{fontSize:"12px",color:c.textMut,whiteSpace:"nowrap"}}>link.zapechat.cloud/</span><input value={form.slug} onChange={e=>setForm({...form,slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')})} placeholder="imersao-nr1" style={{...inp(c),flex:1}}/></div></div>
+      </div>
+      <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Descrição (opcional)</label><input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Descrição da campanha" style={inp(c)}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"14px"}}>
+        <div><label style={lbl(c)}>Limite de membros por grupo</label><input type="number" value={form.max_members_per_group} onChange={e=>setForm({...form,max_members_per_group:parseInt(e.target.value)||250})} style={inp(c)}/></div>
+        <div><label style={lbl(c)}>Meta Pixel ID (opcional)</label><input value={form.meta_pixel_id} onChange={e=>setForm({...form,meta_pixel_id:e.target.value})} placeholder="Ex: 123456789012345" style={inp(c)}/></div>
+      </div>
+      <div style={{marginBottom:"18px"}}><label style={lbl(c)}>Mensagem de Boas-vindas (opcional)</label><textarea value={form.welcome_message} onChange={e=>setForm({...form,welcome_message:e.target.value})} rows={3} style={{...inp(c),resize:"vertical"}} placeholder="Olá! Bem-vindo(a) ao grupo! 🎉"/></div>
+      <div style={{display:"flex",gap:"10px"}}>
+        <button onClick={save} disabled={creating} style={btnP(c,creating)}>{creating?"Salvando...":editId?"Salvar":"Criar Campanha"}</button>
+        <button onClick={()=>{setShowCreate(false);setEditId(null);}} style={btnS(c)}>Cancelar</button>
+      </div>
+    </div>}
+ 
+    {/* Campaign List */}
+    {tab==="list"&&<div style={card(c)}>
+      <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Suas Campanhas</h3>
+      {campaigns.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhuma campanha criada. Clique em "Nova Campanha".</p>:
+      <div>{campaigns.map(camp=>(
+        <div key={camp.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px",borderRadius:"12px",marginBottom:"8px",background:c.bgInput,border:`1px solid ${c.border}`,cursor:"pointer",transition:"all 0.15s"}} onClick={()=>selectCampaign(camp)} onMouseEnter={e=>e.currentTarget.style.borderColor=c.accent+"44"} onMouseLeave={e=>e.currentTarget.style.borderColor=c.border}>
+          <div style={{display:"flex",alignItems:"center",gap:"14px"}}>
+            <div style={{width:"44px",height:"44px",borderRadius:"12px",background:camp.is_active?c.accentSoft:c.bgCard,display:"flex",alignItems:"center",justifyContent:"center"}}><Zap size={20} color={camp.is_active?c.accent:c.textMut}/></div>
+            <div>
+              <div style={{fontSize:"14px",fontWeight:"700",color:c.text}}>{camp.name}</div>
+              <div style={{fontSize:"12px",color:c.accent,fontFamily:"monospace",marginTop:"2px"}}>link.zapechat.cloud/{camp.slug}</div>
+              <div style={{fontSize:"11px",color:c.textMut,marginTop:"2px"}}>{camp.total_groups||0} grupos · {camp.total_members||0} membros · {camp.total_clicks||0} cliques</div>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:"8px"}} onClick={e=>e.stopPropagation()}>
+            <button onClick={()=>copyLink(camp.slug)} style={{...btnS(c),padding:"6px 12px",fontSize:"11px"}}>Copiar Link</button>
+            <button onClick={()=>toggleActive(camp)} style={{background:"none",border:"none",cursor:"pointer",color:camp.is_active?c.ok:c.danger}}>
+              {camp.is_active?<ToggleRight size={20}/>:<ToggleLeft size={20}/>}
+            </button>
+            <button onClick={()=>startEdit(camp)} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}}><Edit size={15}/></button>
+            <button onClick={()=>deleteCampaign(camp)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}}><Trash2 size={15}/></button>
+          </div>
+        </div>
+      ))}</div>}
+    </div>}
+ 
+    {/* Campaign Detail */}
+    {tab==="detail"&&selectedCampaign&&<>
+      {loadingDetail?<div style={{padding:"40px",textAlign:"center",color:c.textMut}}><RefreshCw size={24} style={{animation:"spin 1s linear infinite"}}/></div>:campaignDetail&&<>
+ 
+        {/* Stats Cards */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:"14px",marginBottom:"16px"}}>
+          <div style={{background:c.bgInput,borderRadius:"12px",padding:"16px",textAlign:"center"}}><div style={{fontSize:"24px",fontWeight:"700",color:c.accent}}>{campaignDetail.clicks_total}</div><div style={{fontSize:"12px",color:c.textMut}}>Cliques Total</div></div>
+          <div style={{background:c.bgInput,borderRadius:"12px",padding:"16px",textAlign:"center"}}><div style={{fontSize:"24px",fontWeight:"700",color:c.info}}>{campaignDetail.clicks_today}</div><div style={{fontSize:"12px",color:c.textMut}}>Cliques Hoje</div></div>
+          <div style={{background:c.bgInput,borderRadius:"12px",padding:"16px",textAlign:"center"}}><div style={{fontSize:"24px",fontWeight:"700",color:c.violet}}>{campaignDetail.groups?.length||0}</div><div style={{fontSize:"12px",color:c.textMut}}>Grupos</div></div>
+          <div style={{background:c.bgInput,borderRadius:"12px",padding:"16px",textAlign:"center"}}><div style={{fontSize:"24px",fontWeight:"700",color:c.ok}}>{campaignDetail.groups?.reduce((s,g)=>s+(g.current_members||0),0)||0}</div><div style={{fontSize:"12px",color:c.textMut}}>Membros Total</div></div>
+        </div>
+ 
+        {/* Link */}
+        <div style={{...card(c),marginBottom:"16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <label style={lbl(c)}>Link da Campanha</label>
+              <div style={{fontSize:"15px",color:c.accent,fontFamily:"monospace",fontWeight:"600"}}>link.zapechat.cloud/{campaignDetail.campaign?.slug}</div>
+              {campaignDetail.campaign?.meta_pixel_id&&<div style={{fontSize:"11px",color:c.textMut,marginTop:"4px"}}>Meta Pixel: {campaignDetail.campaign.meta_pixel_id}</div>}
+            </div>
+            <div style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>copyLink(campaignDetail.campaign?.slug)} style={btnP(c,false)}>Copiar Link</button>
+              <button onClick={()=>setShowMassSend(true)} style={{...btnS(c),color:c.violet}}><Mail size={14}/>Disparar</button>
+              <button onClick={updateMembers} style={{...btnS(c)}}><RefreshCw size={14}/>Atualizar</button>
+            </div>
+          </div>
+        </div>
+ 
+        {/* Groups */}
+        <div style={card(c)}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+            <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text}}>Grupos ({campaignDetail.groups?.length||0})</h3>
+            <button onClick={()=>{setShowAddGroups(true);setSelectedGroups([]);}} style={{...btnP(c,false),padding:"8px 14px",fontSize:"12px"}}><Plus size={13}/>Adicionar Grupos</button>
+          </div>
+          {(!campaignDetail.groups||campaignDetail.groups.length===0)?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"20px"}}>Nenhum grupo vinculado. Adicione grupos pra ativar o link rotativo.</p>:
+          <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
+            {["Grupo","Membros","Ocupação","Status","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
+          </tr></thead><tbody>
+            {campaignDetail.groups.map(g=>{const pct=campaignDetail.campaign?.max_members_per_group?Math.round((g.current_members/(campaignDetail.campaign.max_members_per_group))*100):0;return<tr key={g.group_jid}>
+              <td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{g.group_name||g.group_jid}</td>
+              <td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{g.current_members}/{campaignDetail.campaign?.max_members_per_group||250}</td>
+              <td style={{padding:"10px 12px"}}><div style={{width:"80px",height:"6px",borderRadius:"3px",background:c.bgCard}}><div style={{width:`${Math.min(pct,100)}%`,height:"100%",borderRadius:"3px",background:pct>=90?c.danger:pct>=70?c.warn:c.ok}}/></div></td>
+              <td style={{padding:"10px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:g.is_full?c.dangerSoft:c.okSoft,color:g.is_full?c.danger:c.ok}}>{g.is_full?"Lotado":"Aberto"}</span></td>
+              <td style={{padding:"10px 12px"}}><button onClick={()=>removeGroupFromCampaign(g.id)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}}><Trash2 size={14}/></button></td>
+            </tr>;})}
+          </tbody></table></div>}
+        </div>
+      </>}
+    </>}
+  </div>);
+}
+
+// ==========================================
 // NOVA AIAssistantPage COMPLETA v2
 // Substitua a função AIAssistantPage inteira no App.jsx
 // Não esqueça de importar apiKeysApi no import do topo
@@ -1843,10 +2070,10 @@ function AIAssistantPage(){
 // ==================== MAIN ====================
 function MainContent({page,user,onToggleSidebar,onProfileUpdate}){
   const{dark}=useTheme();const c=C(dark);
-  const titles={dashboard:["Dashboard","Visão geral"],qrcode:["WhatsApp","Gerencie sua conta WhatsApp"],send:["Enviar Mensagem","Texto e mídia"],mass:["Disparo em Massa","Campanhas"],groups:["Disparo em Grupos","Envie para Múltiplos Grupos"],"group-events":["Monitor de Grupos","Entrada e saída"],reports:["Relatórios","Análises"],contacts:["Contatos","Sua lista"],admin:["Admin","Gerenciar clientes"],ai:["Assistente IA","Resposta automática com IA"],automations:["Automações","Webhooks de pagamento"],settings:["Configurações","Seu perfil"]};
+  const titles={dashboard:["Dashboard","Visão geral"],qrcode:["WhatsApp","Gerencie sua conta WhatsApp"],send:["Enviar Mensagem","Texto e mídia"],mass:["Disparo em Massa","Campanhas"],groups:["Disparo em Grupos","Envie para Múltiplos Grupos"],"group-campaigns":["Campanhas de Grupos","Links rotativos e distribuição automática"],"group-events":["Monitor de Grupos","Entrada e saída"],reports:["Relatórios","Análises"],contacts:["Contatos","Sua lista"],admin:["Admin","Gerenciar clientes"],ai:["Assistente IA","Resposta automática com IA"],automations:["Automações","Webhooks de pagamento"],settings:["Configurações","Seu perfil"]};
   return(<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}><div style={{flex:1,background:c.bg,minHeight:"100vh"}}>
     <Header title={titles[page]?.[0]||""} subtitle={titles[page]?.[1]||""} user={user} onToggleSidebar={onToggleSidebar}/>
-    {page==="dashboard"&&<DashboardPage/>}{page==="qrcode"&&<QrCodePage/>}{page==="send"&&<SendMessagePage/>}{page==="mass"&&<MassSendPage/>}{page==="groups"&&<GroupsPage/>}{page==="group-events"&&<GroupEventsPage/>}{page==="reports"&&<ReportsPage/>}{page==="contacts"&&<ContactsPage/>}{page==="admin"&&<AdminPage/>}{page==="ai"&&<AIAssistantPage/>}{page==="automations"&&<AutomationsPage/>}{page==="settings"&&<SettingsPage user={user} onProfileUpdate={onProfileUpdate}/>}
+    {page==="dashboard"&&<DashboardPage/>}{page==="qrcode"&&<QrCodePage/>}{page==="send"&&<SendMessagePage/>}{page==="mass"&&<MassSendPage/>}{page==="groups"&&<GroupsPage/>}{page==="group-events"&&<GroupEventsPage/>}{page==="group-campaigns"&&<GroupCampaignsPage/>}{page==="reports"&&<ReportsPage/>}{page==="contacts"&&<ContactsPage/>}{page==="admin"&&<AdminPage/>}{page==="ai"&&<AIAssistantPage/>}{page==="automations"&&<AutomationsPage/>}{page==="settings"&&<SettingsPage user={user} onProfileUpdate={onProfileUpdate}/>}
   </div></div>);
 }
 
