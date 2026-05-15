@@ -48,6 +48,19 @@ export const profileApi = {
   changePassword: (data) => api.put('/profile/password', data),
 };
 
+export const groupCampaignsApi = {
+  list: () => api.get('/group-campaigns'),
+  get: (id) => api.get(`/group-campaigns/${id}`),
+  create: (data) => api.post('/group-campaigns', data),
+  update: (id, data) => api.put(`/group-campaigns/${id}`, data),
+  delete: (id) => api.delete(`/group-campaigns/${id}`),
+  addGroups: (id, groups) => api.post(`/group-campaigns/${id}/groups`, { groups }),
+  removeGroup: (id, groupId) => api.delete(`/group-campaigns/${id}/groups/${groupId}`),
+  updateMembers: (id) => api.post(`/group-campaigns/${id}/update-members`),
+  massSend: (id, data) => api.post(`/group-campaigns/${id}/mass-send`, data),
+  stats: (id) => api.get(`/group-campaigns/${id}/stats`),
+};
+
 export const messagesApi = {
   sendText: (number, text, options = {}) => api.post('/messages/send-text', { number, text, ...options }),
   sendMedia: (data) => api.post('/messages/send-media', data),
