@@ -207,6 +207,8 @@ function AutomationsPage(){
   const[editId,setEditId]=useState(null);
   const[seqMessages,setSeqMessages]=useState([{message_template:"",delay_minutes:0}]);
   const[loadingSeq,setLoadingSeq]=useState(false);
+  const[logFilter,setLogFilter]=useState(null);
+  const[loadingLogs,setLoadingLogs]=useState(false);
 
   const[form,setForm]=useState({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});
 
@@ -227,16 +229,34 @@ function AutomationsPage(){
 
   const load=async()=>{
     try{
-      const[autoRes,logRes]=await Promise.all([automationsApi.list(),automationsApi.logs({limit:20})]);
+      const[autoRes,logRes]=await Promise.all([automationsApi.list(),automationsApi.logs({limit:200})]);
       setAutomations(autoRes.data.automations||[]);setLogs(logRes.data.logs||[]);
+      setLogFilter(null);
     }catch(e){console.error(e);}finally{setLoading(false);}
   };
   useEffect(()=>{load();},[]);
 
+  // Ver falhas de uma automação específica
+  const viewFailures=async(auto)=>{
+    setLogFilter({automationId:auto.id,automationName:auto.name});
+    setTab("logs");setLoadingLogs(true);
+    try{
+      const{data}=await automationsApi.logs({automation_id:auto.id,status:"failed",limit:200});
+      setLogs(data.logs||[]);
+    }catch(e){setToast({msg:"Erro ao carregar falhas",type:"error"});}finally{setLoadingLogs(false);}
+  };
+
+  const clearLogFilter=async()=>{
+    setLogFilter(null);setLoadingLogs(true);
+    try{
+      const{data}=await automationsApi.logs({limit:200});
+      setLogs(data.logs||[]);
+    }catch(e){}finally{setLoadingLogs(false);}
+  };
+
   const loadSequence=async(id,fallbackMsg)=>{setLoadingSeq(true);try{const{data}=await automationsApi.getMessages(id);if(data.messages&&data.messages.length>0)setSeqMessages(data.messages.map(m=>({message_template:m.message_template,delay_minutes:m.delay_minutes||0})));else setSeqMessages([{message_template:fallbackMsg||"",delay_minutes:0}]);}catch(e){setSeqMessages([{message_template:fallbackMsg||"",delay_minutes:0}]);}finally{setLoadingSeq(false);}};
 
   const save=async()=>{
-    // Validar: precisa ter nome e pelo menos uma mensagem (na sequência ou no form)
     const hasSeqMsg=seqMessages.some(m=>m.message_template.trim());
     if(!form.name||(!form.message_template&&!hasSeqMsg)){setToast({msg:"Preencha nome e pelo menos uma mensagem",type:"error"});return;}
     setCreating(true);
@@ -250,7 +270,6 @@ function AutomationsPage(){
         autoId=data.automation?.id;
         setToast({msg:"Automação criada!",type:"success"});
       }
-      // Salvar sequência de mensagens
       if(autoId&&seqMessages.length>0&&seqMessages.some(m=>m.message_template.trim())){
         await automationsApi.saveMessages(autoId,seqMessages.filter(m=>m.message_template.trim()));
       }
@@ -279,11 +298,8 @@ function AutomationsPage(){
 
   const useTemplate=(eventType)=>{
     setForm({...form,event_type:eventType,message_template:templates[eventType]||""});
-    // Atualizar primeira mensagem da sequência com o template
     const n=[...seqMessages];n[0].message_template=templates[eventType]||"";setSeqMessages(n);
   };
-
-  const copyUrl=()=>{navigator.clipboard?.writeText(webhookUrl);setToast({msg:"URL copiada!",type:"success"});};
 
   const statusColor=(s)=>s==="sent"?c.ok:s==="failed"?c.danger:c.warn;
   const statusLabel=(s)=>s==="sent"?"Enviada":s==="failed"?"Falhou":"Ignorada";
@@ -298,7 +314,7 @@ function AutomationsPage(){
     {/* Tabs */}
     <div style={{display:"flex",gap:"8px",marginBottom:"16px"}}>
       <button onClick={()=>setTab("list")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="list"?c.accent:c.bgInput,color:tab==="list"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Automações</button>
-      <button onClick={()=>setTab("logs")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="logs"?c.accent:c.bgInput,color:tab==="logs"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Histórico</button>
+      <button onClick={()=>{setTab("logs");if(logFilter)clearLogFilter();}} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="logs"?c.accent:c.bgInput,color:tab==="logs"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Histórico</button>
       <div style={{flex:1}}/>
       <button onClick={()=>{setShowCreate(true);setEditId(null);setForm({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});setSeqMessages([{message_template:"",delay_minutes:0}]);}} style={btnP(c,false)}><Plus size={14}/>Nova Automação</button>
     </div>
@@ -306,7 +322,7 @@ function AutomationsPage(){
     {/* Create/Edit Form */}
     {showCreate&&<div style={{...card(c),marginBottom:"16px"}}>
       <h3 style={{margin:"0 0 16px",fontSize:"16px",fontWeight:"700",color:c.text}}>{editId?"Editar":"Nova"} Automação</h3>
-      
+
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"14px"}}>
         <div><label style={lbl(c)}>Nome</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Boas-vindas Compra" style={inp(c)}/></div>
         <div><label style={lbl(c)}>Plataforma</label><select value={form.platform} onChange={e=>setForm({...form,platform:e.target.value})} style={inp(c)}>{platforms.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
@@ -397,7 +413,11 @@ function AutomationsPage(){
           <td style={{padding:"10px 12px",fontSize:"12px",color:c.textSec,textTransform:"capitalize"}}>{a.platform}</td>
           <td style={{padding:"10px 12px",fontSize:"12px",color:c.textSec}}>{eventEmoji(a.event_type)} {eventLabel(a.event_type)}</td>
           <td style={{padding:"10px 12px",fontSize:"13px",color:c.ok,fontWeight:"600"}}>{a.total_sent}</td>
-          <td style={{padding:"10px 12px",fontSize:"13px",color:a.total_failed>0?c.danger:c.textMut}}>{a.total_failed}</td>
+          <td style={{padding:"10px 12px"}}>
+            {a.total_failed>0?
+              <button onClick={()=>viewFailures(a)} title="Ver falhas no histórico" style={{background:"none",border:"none",cursor:"pointer",color:c.danger,fontSize:"13px",fontWeight:"700",textDecoration:"underline",padding:0}}>{a.total_failed}</button>
+              :<span style={{fontSize:"13px",color:c.textMut}}>{a.total_failed}</span>}
+          </td>
           <td style={{padding:"10px 12px"}}>
             <button onClick={()=>toggleActive(a)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:"4px",color:a.is_active?c.ok:c.danger,fontSize:"12px",fontWeight:"600"}}>
               {a.is_active?<ToggleRight size={18}/>:<ToggleLeft size={18}/>}{a.is_active?"Ativa":"Inativa"}
@@ -414,9 +434,19 @@ function AutomationsPage(){
 
     {/* Logs */}
     {tab==="logs"&&<div style={card(c)}>
-      <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico de Envios Automáticos</h3>
-      {logs.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhum envio automático registrado ainda.</p>:
-      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+        <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico de Envios Automáticos</h3>
+        <button onClick={()=>logFilter?viewFailures({id:logFilter.automationId,name:logFilter.automationName}):clearLogFilter()} style={{...btnS(c),padding:"6px 12px",fontSize:"11px"}}><RefreshCw size={12}/>Atualizar</button>
+      </div>
+
+      {logFilter&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:c.dangerSoft,borderRadius:"10px",padding:"10px 14px",marginBottom:"12px",border:`1px solid ${c.danger}33`}}>
+        <span style={{fontSize:"13px",color:c.danger,fontWeight:"600"}}>Mostrando apenas as falhas de: {logFilter.automationName}</span>
+        <button onClick={clearLogFilter} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,fontSize:"12px",fontWeight:"600",display:"flex",alignItems:"center",gap:"4px"}}><X size={14}/>Limpar filtro</button>
+      </div>}
+
+      {loadingLogs?<div style={{textAlign:"center",padding:"30px"}}><RefreshCw size={20} color={c.textMut} style={{animation:"spin 1s linear infinite"}}/></div>:
+      logs.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>{logFilter?"Nenhuma falha registrada para esta automação.":"Nenhum envio automático registrado ainda."}</p>:
+      <><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
         {["Data","Plataforma","Evento","Comprador","Telefone","Produto","Status","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
       </tr></thead><tbody>
         {logs.map(l=><tr key={l.id}>
@@ -427,9 +457,10 @@ function AutomationsPage(){
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.textMut,fontFamily:"monospace"}}>{l.buyer_phone||"—"}</td>
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.textSec}}>{l.product_name||"—"}</td>
           <td style={{padding:"8px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:l.status==="sent"?c.okSoft:l.status==="failed"?c.dangerSoft:c.warnSoft,color:statusColor(l.status)}}>{statusLabel(l.status)}</span></td>
-          <td style={{padding:"8px 12px"}}>{l.status==="failed"&&<button onClick={async()=>{try{await automationsApi.resend(l.id);setToast({msg:`Reenviado para ${l.buyer_phone}!`,type:"success"});load();}catch(e){setToast({msg:e.response?.data?.error||"Falha ao reenviar",type:"error"});}}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px",display:"flex",alignItems:"center",gap:"4px",fontSize:"11px",fontWeight:"600"}}><RefreshCw size={13}/>Reenviar</button>}</td>
+          <td style={{padding:"8px 12px"}}>{l.status==="failed"&&<button onClick={async()=>{try{await automationsApi.resend(l.id);setToast({msg:`Reenviado para ${l.buyer_phone}!`,type:"success"});if(logFilter)viewFailures({id:logFilter.automationId,name:logFilter.automationName});else load();}catch(e){setToast({msg:e.response?.data?.error||"Falha ao reenviar",type:"error"});}}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px",display:"flex",alignItems:"center",gap:"4px",fontSize:"11px",fontWeight:"600"}}><RefreshCw size={13}/>Reenviar</button>}</td>
         </tr>)}
-      </tbody></table></div>}
+      </tbody></table></div>
+      <div style={{fontSize:"11px",color:c.textMut,marginTop:"10px",textAlign:"right"}}>{logs.length} registro(s) exibido(s)</div></>}
     </div>}
   </div>);
 }
