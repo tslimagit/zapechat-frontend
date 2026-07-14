@@ -954,7 +954,7 @@ function GroupsPage(){
       const avgInterval=Math.floor((speedConfig.minInterval+speedConfig.maxInterval)/2);
       if(massScheduled){
         const recipients=massSelectedGroups.map(jid=>({phone:jid,name:groups.find(g=>g.group_jid===jid)?.name||jid}));
-        const p={name:"Grupo: "+(massCampaignName||"Disparo "+new Date().toLocaleDateString("pt-BR")),message:massText||'',recipients,interval_ms:avgInterval*1000,scheduled_at:massScheduled};
+        const p={name:"Grupo: "+(massCampaignName||"Disparo "+new Date().toLocaleDateString("pt-BR")),message:massText||'',recipients,interval_ms:avgInterval*1000,scheduled_at:massScheduled,mentions_everyone:massMentionAll};
         if(massMedia){p.media_url=massMedia.url||'';p.media_type=massMedia.type;}
         await campaignsApi.create(p);
         setToast({msg:`Disparo agendado para ${new Date(massScheduled).toLocaleString("pt-BR")} em ${massSelectedGroups.length} grupos!`,type:"success"});
