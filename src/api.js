@@ -58,6 +58,7 @@ export const groupCampaignsApi = {
   removeGroup: (id, groupId) => api.delete(`/group-campaigns/${id}/groups/${groupId}`),
   updateMembers: (id) => api.post(`/group-campaigns/${id}/update-members`),
   massSend: (id, data) => api.post(`/group-campaigns/${id}/mass-send`, data),
+  createGroups: (id, data) => api.post(`/group-campaigns/${id}/create-groups`, data),
   stats: (id) => api.get(`/group-campaigns/${id}/stats`),
 };
 
