@@ -193,9 +193,7 @@ function AuthPage({onLogin}){
 }
 
 // ==========================================
-// NOVA AutomationsPage - Adicionar no App.jsx
-// Não esqueça de importar automationsApi no topo do App.jsx:
-// import { authApi, messagesApi, ..., automationsApi } from "./api";
+// AutomationsPage
 // ==========================================
  
 function AutomationsPage(){
@@ -209,24 +207,30 @@ function AutomationsPage(){
   const[loadingSeq,setLoadingSeq]=useState(false);
   const[logFilter,setLogFilter]=useState(null);
   const[loadingLogs,setLoadingLogs]=useState(false);
-
-  const[form,setForm]=useState({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});
-
-  const platforms=[{id:"hotmart",label:"Hotmart"},{id:"eduzz",label:"Eduzz"},{id:"kiwify",label:"Kiwify"},{id:"voomp",label:"Voomp"},{id:"guru",label:"Guru"},{id:"guru_eticket",label:"Guru E-Tickets"},{id:"activecampaign",label:"ActiveCampaign"}];
+  const[payloadFields,setPayloadFields]=useState(null);
+  const[loadingPayload,setLoadingPayload]=useState(false);
+ 
+  const emptyMapping={buyerPhone:"",buyerName:"",buyerEmail:"",productName:"",value:"",transactionId:""};
+  const emptyForm={name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:"",field_mapping:{...emptyMapping}};
+  const[form,setForm]=useState(emptyForm);
+ 
+  const platforms=[{id:"hotmart",label:"Hotmart"},{id:"eduzz",label:"Eduzz"},{id:"kiwify",label:"Kiwify"},{id:"voomp",label:"Voomp"},{id:"guru",label:"Guru"},{id:"guru_eticket",label:"Guru E-Tickets"},{id:"activecampaign",label:"ActiveCampaign"},{id:"generic",label:"Webhook Genérico (n8n, Make...)"}];
   const events=[
     {id:"purchase_approved",label:"Compra Aprovada",emoji:"✅"},
     {id:"boleto_generated",label:"Boleto Gerado",emoji:"📄"},
     {id:"pix_generated",label:"PIX Gerado",emoji:"💰"},
     {id:"cart_abandoned",label:"Carrinho Abandonado",emoji:"🛒"},
+    {id:"lead_captured",label:"Lead Capturado",emoji:"🎯"},
   ];
-
+ 
   const templates={
     purchase_approved:"Olá {nome}! 🎉\n\nSua compra do *{produto}* foi aprovada com sucesso!\n\nEm caso de dúvidas, entre em contato:\n📱 {telefone_suporte}\n📧 {email_suporte}\n\nObrigado pela confiança!",
     boleto_generated:"Olá {nome}! 📄\n\nSeu boleto para o *{produto}* foi gerado!\n\nNão esqueça de efetuar o pagamento até o vencimento.\n\nDúvidas? {telefone_suporte}",
     pix_generated:"Olá {nome}! 💰\n\nSeu PIX para o *{produto}* foi gerado!\n\nEfetue o pagamento para liberar seu acesso.\n\nDúvidas? {telefone_suporte}",
     cart_abandoned:"Olá {nome}! 👋\n\nNotamos que você demonstrou interesse no *{produto}* mas não finalizou a compra.\n\nPosso te ajudar com alguma dúvida?\n\n📱 {telefone_suporte}",
+    lead_captured:"Olá {nome}! 👋\n\nRecebemos sua inscrição para *{produto}*.\n\nEm breve enviaremos mais informações por aqui.\n\nDúvidas? {telefone_suporte}",
   };
-
+ 
   const load=async()=>{
     try{
       const[autoRes,logRes]=await Promise.all([automationsApi.list(),automationsApi.logs({limit:200})]);
@@ -235,8 +239,7 @@ function AutomationsPage(){
     }catch(e){console.error(e);}finally{setLoading(false);}
   };
   useEffect(()=>{load();},[]);
-
-  // Ver falhas de uma automação específica
+ 
   const viewFailures=async(auto)=>{
     setLogFilter({automationId:auto.id,automationName:auto.name});
     setTab("logs");setLoadingLogs(true);
@@ -245,100 +248,160 @@ function AutomationsPage(){
       setLogs(data.logs||[]);
     }catch(e){setToast({msg:"Erro ao carregar falhas",type:"error"});}finally{setLoadingLogs(false);}
   };
-
+ 
   const clearLogFilter=async()=>{
     setLogFilter(null);setLoadingLogs(true);
-    try{
-      const{data}=await automationsApi.logs({limit:200});
-      setLogs(data.logs||[]);
-    }catch(e){}finally{setLoadingLogs(false);}
+    try{const{data}=await automationsApi.logs({limit:200});setLogs(data.logs||[]);}catch(e){}finally{setLoadingLogs(false);}
   };
-
+ 
+  // Buscar campos do último webhook recebido (mapeamento genérico)
+  const loadLastPayload=async()=>{
+    if(!editId){setToast({msg:"Salve a automação primeiro, depois dispare um teste na sua ferramenta",type:"error"});return;}
+    setLoadingPayload(true);
+    try{
+      const{data}=await automationsApi.lastPayload(editId);
+      if(!data.fields||Object.keys(data.fields).length===0){
+        setToast({msg:"Nenhum webhook recebido ainda. Dispare um teste na sua ferramenta.",type:"error"});
+      }else{
+        setPayloadFields(data.fields);
+        setToast({msg:`${Object.keys(data.fields).length} campos encontrados!`,type:"success"});
+      }
+    }catch(e){setToast({msg:"Erro ao buscar webhook",type:"error"});}finally{setLoadingPayload(false);}
+  };
+ 
   const loadSequence=async(id,fallbackMsg)=>{setLoadingSeq(true);try{const{data}=await automationsApi.getMessages(id);if(data.messages&&data.messages.length>0)setSeqMessages(data.messages.map(m=>({message_template:m.message_template,delay_minutes:m.delay_minutes||0})));else setSeqMessages([{message_template:fallbackMsg||"",delay_minutes:0}]);}catch(e){setSeqMessages([{message_template:fallbackMsg||"",delay_minutes:0}]);}finally{setLoadingSeq(false);}};
-
+ 
   const save=async()=>{
     const hasSeqMsg=seqMessages.some(m=>m.message_template.trim());
     if(!form.name||(!form.message_template&&!hasSeqMsg)){setToast({msg:"Preencha nome e pelo menos uma mensagem",type:"error"});return;}
     setCreating(true);
     try{
       let autoId=editId;
+      const payload={...form,message_template:seqMessages[0]?.message_template||form.message_template};
+      if(form.platform!=="generic")delete payload.field_mapping;
       if(editId){
-        await automationsApi.update(editId,{...form,message_template:seqMessages[0]?.message_template||form.message_template});
+        await automationsApi.update(editId,payload);
         setToast({msg:"Automação atualizada!",type:"success"});
       }else{
-        const{data}=await automationsApi.create({...form,message_template:seqMessages[0]?.message_template||form.message_template});
+        const{data}=await automationsApi.create(payload);
         autoId=data.automation?.id;
         setToast({msg:"Automação criada!",type:"success"});
       }
       if(autoId&&seqMessages.length>0&&seqMessages.some(m=>m.message_template.trim())){
         await automationsApi.saveMessages(autoId,seqMessages.filter(m=>m.message_template.trim()));
       }
-      setShowCreate(false);setEditId(null);
-      setForm({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});
+      setShowCreate(false);setEditId(null);setPayloadFields(null);
+      setForm(emptyForm);
       setSeqMessages([{message_template:"",delay_minutes:0}]);
       load();
-    }catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}finally{setCreating(false);}
+    }catch(e){setToast({msg:e.response?.data?.error||e.response?.data?.errors?.[0]?.msg||"Erro",type:"error"});}finally{setCreating(false);}
   };
-
+ 
   const toggleActive=async(auto)=>{
     try{await automationsApi.update(auto.id,{is_active:!auto.is_active});setToast({msg:`${auto.is_active?"Desativada":"Ativada"}!`,type:"success"});load();}
     catch(e){setToast({msg:"Erro",type:"error"});}
   };
-
+ 
   const deleteAuto=async(auto)=>{
     if(!confirm(`Remover automação "${auto.name}"?`))return;
     try{await automationsApi.delete(auto.id);setToast({msg:"Removida!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}
   };
-
+ 
   const startEdit=(auto)=>{
-    setForm({name:auto.name,platform:auto.platform,event_type:auto.event_type,message_template:auto.message_template,support_phone:auto.support_phone||"",support_email:auto.support_email||""});
-    setEditId(auto.id);setShowCreate(true);
+    setForm({name:auto.name,platform:auto.platform,event_type:auto.event_type,message_template:auto.message_template,support_phone:auto.support_phone||"",support_email:auto.support_email||"",field_mapping:auto.field_mapping||{...emptyMapping}});
+    setEditId(auto.id);setShowCreate(true);setPayloadFields(null);
     loadSequence(auto.id,auto.message_template);
   };
-
+ 
   const useTemplate=(eventType)=>{
     setForm({...form,event_type:eventType,message_template:templates[eventType]||""});
     const n=[...seqMessages];n[0].message_template=templates[eventType]||"";setSeqMessages(n);
   };
-
+ 
   const statusColor=(s)=>s==="sent"?c.ok:s==="failed"?c.danger:c.warn;
   const statusLabel=(s)=>s==="sent"?"Enviada":s==="failed"?"Falhou":"Ignorada";
   const eventLabel=(e)=>events.find(ev=>ev.id===e)?.label||e;
   const eventEmoji=(e)=>events.find(ev=>ev.id===e)?.emoji||"📌";
-
+  const platformLabel=(p)=>platforms.find(pl=>pl.id===p)?.label||p;
+ 
+  const mappingFields=[
+    {key:"buyerPhone",label:"Telefone (obrigatório)",ph:"body.whatsapp_e164"},
+    {key:"buyerName",label:"Nome",ph:"body.nome"},
+    {key:"buyerEmail",label:"E-mail",ph:"body.email"},
+    {key:"productName",label:"Produto / Evento",ph:"body.evento"},
+    {key:"value",label:"Valor (opcional)",ph:"body.valor"},
+    {key:"transactionId",label:"ID Transação (opcional)",ph:"body.id"},
+  ];
+ 
   if(loading)return<div style={{padding:"40px",textAlign:"center",color:c.textMut}}><RefreshCw size={24} style={{animation:"spin 1s linear infinite"}}/></div>;
-
+ 
   return(<div style={{padding:"24px"}}>
     {toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
-
+ 
     {/* Tabs */}
     <div style={{display:"flex",gap:"8px",marginBottom:"16px"}}>
       <button onClick={()=>setTab("list")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="list"?c.accent:c.bgInput,color:tab==="list"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Automações</button>
       <button onClick={()=>{setTab("logs");if(logFilter)clearLogFilter();}} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="logs"?c.accent:c.bgInput,color:tab==="logs"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Histórico</button>
       <div style={{flex:1}}/>
-      <button onClick={()=>{setShowCreate(true);setEditId(null);setForm({name:"",platform:"hotmart",event_type:"purchase_approved",message_template:"",support_phone:"",support_email:""});setSeqMessages([{message_template:"",delay_minutes:0}]);}} style={btnP(c,false)}><Plus size={14}/>Nova Automação</button>
+      <button onClick={()=>{setShowCreate(true);setEditId(null);setForm(emptyForm);setPayloadFields(null);setSeqMessages([{message_template:"",delay_minutes:0}]);}} style={btnP(c,false)}><Plus size={14}/>Nova Automação</button>
     </div>
-
+ 
     {/* Create/Edit Form */}
     {showCreate&&<div style={{...card(c),marginBottom:"16px"}}>
       <h3 style={{margin:"0 0 16px",fontSize:"16px",fontWeight:"700",color:c.text}}>{editId?"Editar":"Nova"} Automação</h3>
-
+ 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"14px"}}>
         <div><label style={lbl(c)}>Nome</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Boas-vindas Compra" style={inp(c)}/></div>
         <div><label style={lbl(c)}>Plataforma</label><select value={form.platform} onChange={e=>setForm({...form,platform:e.target.value})} style={inp(c)}>{platforms.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
       </div>
-
+ 
       <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Evento</label>
         <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>{events.map(e=>(
           <button key={e.id} onClick={()=>useTemplate(e.id)} style={{padding:"8px 14px",borderRadius:"10px",border:`1px solid ${form.event_type===e.id?c.accent:c.border}`,background:form.event_type===e.id?c.accentSoft:c.bgInput,color:form.event_type===e.id?c.accent:c.textSec,fontSize:"12px",fontWeight:"600",cursor:"pointer"}}>{e.emoji} {e.label}</button>
         ))}</div>
+        {form.platform==="generic"&&<span style={{fontSize:"11px",color:c.textMut,display:"block",marginTop:"6px"}}>No webhook genérico, todo POST recebido dispara a automação. O evento acima é só pra organização e relatórios.</span>}
       </div>
-
+ 
+      {/* ===== Mapeamento de Campos (só Webhook Genérico) ===== */}
+      {form.platform==="generic"&&<div style={{background:c.bgInput,borderRadius:"14px",padding:"18px",border:`1px solid ${c.border}`,marginBottom:"14px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px",flexWrap:"wrap",gap:"8px"}}>
+          <label style={{fontSize:"14px",fontWeight:"700",color:c.text,display:"flex",alignItems:"center",gap:"8px"}}><Globe size={15} color={c.accent}/>Mapeamento de Campos</label>
+          <button onClick={loadLastPayload} disabled={loadingPayload} style={{...btnS(c),padding:"6px 12px",fontSize:"11px"}}>{loadingPayload?<RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/>:<Eye size={12}/>}Ver último webhook</button>
+        </div>
+        <span style={{fontSize:"11px",color:c.textMut,display:"block",marginBottom:"14px"}}>
+          Informe o caminho de cada campo no JSON que sua ferramenta envia (ex: <code style={{color:c.accent}}>body.nome</code>). Deixe vazio para detecção automática dos nomes mais comuns.
+        </span>
+ 
+        {payloadFields&&<div style={{background:c.bgCard,borderRadius:"10px",padding:"12px",marginBottom:"14px",border:`1px solid ${c.border}`,maxHeight:"200px",overflowY:"auto"}}>
+          <div style={{fontSize:"11px",fontWeight:"700",color:c.textSec,marginBottom:"8px",textTransform:"uppercase"}}>Campos recebidos (clique para copiar)</div>
+          {Object.entries(payloadFields).map(([path,val])=>(
+            <div key={path} onClick={()=>{navigator.clipboard?.writeText(path);setToast({msg:`"${path}" copiado!`,type:"success"});}} style={{display:"flex",justifyContent:"space-between",gap:"10px",padding:"4px 6px",borderRadius:"6px",cursor:"pointer",fontSize:"11px"}} onMouseEnter={e=>e.currentTarget.style.background=c.bgInput} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <span style={{color:c.accent,fontFamily:"monospace",flexShrink:0}}>{path}</span>
+              <span style={{color:c.textMut,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{String(val).substring(0,40)}</span>
+            </div>
+          ))}
+        </div>}
+ 
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px"}}>
+          {mappingFields.map(f=>(
+            <div key={f.key}>
+              <label style={{...lbl(c),fontSize:"11px"}}>{f.label}</label>
+              <input value={form.field_mapping?.[f.key]||""} onChange={e=>setForm({...form,field_mapping:{...form.field_mapping,[f.key]:e.target.value}})} placeholder={f.ph} style={{...inp(c),fontFamily:"monospace",fontSize:"12px"}}/>
+            </div>
+          ))}
+        </div>
+ 
+        <div style={{background:c.infoSoft,borderRadius:"10px",padding:"12px",marginTop:"14px"}}>
+          <div style={{fontSize:"11px",color:c.info,fontWeight:"700",marginBottom:"4px"}}>💡 Variáveis extras</div>
+          <span style={{fontSize:"11px",color:c.textSec}}>Qualquer campo do webhook pode virar variável na mensagem. Ex: se o JSON tem <code style={{color:c.accent}}>papel</code>, use <code style={{color:c.accent}}>{"{papel}"}</code> no texto.</span>
+        </div>
+      </div>}
+ 
       {/* Sequência de Mensagens */}
       <div style={{marginBottom:"14px"}}>
         <label style={lbl(c)}>Sequência de Mensagens</label>
         <span style={{fontSize:"11px",color:c.textMut,display:"block",marginBottom:"10px"}}>Adicione múltiplas mensagens com intervalos. A primeira é enviada imediatamente.</span>
-
+ 
         {loadingSeq?<div style={{textAlign:"center",padding:"20px"}}><RefreshCw size={16} color={c.textMut} style={{animation:"spin 1s linear infinite"}}/></div>:
         seqMessages.map((msg,i)=>(
           <div key={i} style={{background:c.bgInput,borderRadius:"12px",padding:"14px",marginBottom:"10px",border:`1px solid ${c.border}`}}>
@@ -364,43 +427,43 @@ function AutomationsPage(){
                     <option value="4320">3 dias</option>
                     <option value="10080">7 dias</option>
                   </select>
-                  <span style={{fontSize:"11px",color:c.textMut}}>após a compra</span>
+                  <span style={{fontSize:"11px",color:c.textMut}}>depois</span>
                 </div>}
                 {seqMessages.length>1&&<button onClick={()=>setSeqMessages(seqMessages.filter((_,idx)=>idx!==i))} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"2px"}}><X size={14}/></button>}
               </div>
             </div>
             <textarea value={msg.message_template} onChange={e=>{const n=[...seqMessages];n[i].message_template=e.target.value;setSeqMessages(n);}} rows={4} style={{...inp(c),resize:"vertical",fontSize:"13px"}} placeholder={i===0?"Olá {nome}! Sua compra do {produto} foi aprovada!":"Mensagem de follow-up..."}/>
             <div style={{display:"flex",gap:"4px",marginTop:"6px",flexWrap:"wrap"}}>
-              {["{nome}","{produto}","{valor}","{telefone_suporte}","{email_suporte}","{transacao}"].map(v=>(
+              {["{nome}","{primeiro_nome}","{produto}","{valor}","{telefone_suporte}","{email_suporte}","{transacao}"].map(v=>(
                 <button key={v} onClick={()=>{const n=[...seqMessages];n[i].message_template+=v;setSeqMessages(n);}} style={{padding:"3px 8px",borderRadius:"6px",border:`1px solid ${c.border}`,background:c.bgCard,color:c.accent,fontSize:"11px",fontWeight:"600",cursor:"pointer"}}>{v}</button>
               ))}
             </div>
           </div>
         ))}
-
+ 
         <button onClick={()=>setSeqMessages([...seqMessages,{message_template:"",delay_minutes:seqMessages.length===1?5:60}])} style={{background:"none",border:"none",color:c.accent,fontSize:"13px",fontWeight:"600",cursor:"pointer",padding:"4px 0",display:"flex",alignItems:"center",gap:"4px"}}><Plus size={14}/>Adicionar mensagem na sequência</button>
       </div>
-
+ 
       {/* Preview */}
       {seqMessages.length>0&&seqMessages[0].message_template&&<div style={{marginBottom:"18px"}}>
         <label style={lbl(c)}>Pré-visualização (Mensagem 1)</label>
         <div style={{background:dark?"#005c4b":"#dcf8c6",borderRadius:"12px 12px 12px 4px",padding:"12px 14px",maxWidth:"350px"}}>
-          <p style={{margin:0,fontSize:"13px",color:dark?"#e9edef":"#111b21",whiteSpace:"pre-wrap"}}>{seqMessages[0].message_template.replace(/\{nome\}/gi,"João Silva").replace(/\{produto\}/gi,"Curso XYZ").replace(/\{valor\}/gi,"R$ 197,00").replace(/\{telefone_suporte\}/gi,form.support_phone||"(11) 99988-7766").replace(/\{email_suporte\}/gi,form.support_email||"suporte@empresa.com").replace(/\{transacao\}/gi,"TRX123456")}</p>
+          <p style={{margin:0,fontSize:"13px",color:dark?"#e9edef":"#111b21",whiteSpace:"pre-wrap"}}>{seqMessages[0].message_template.replace(/\{nome\}/gi,"João Silva").replace(/\{primeiro_nome\}/gi,"João").replace(/\{produto\}/gi,"Curso XYZ").replace(/\{valor\}/gi,"R$ 197,00").replace(/\{telefone_suporte\}/gi,form.support_phone||"(11) 99988-7766").replace(/\{email_suporte\}/gi,form.support_email||"suporte@empresa.com").replace(/\{transacao\}/gi,"TRX123456")}</p>
         </div>
         {seqMessages.length>1&&<div style={{marginTop:"8px",fontSize:"12px",color:c.textMut}}>+ {seqMessages.length-1} mensagem(ns) agendada(s) na sequência</div>}
       </div>}
-
+ 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"18px"}}>
         <div><label style={lbl(c)}>Telefone de Suporte</label><input value={form.support_phone} onChange={e=>setForm({...form,support_phone:e.target.value})} placeholder="5511999887766" style={inp(c)}/></div>
         <div><label style={lbl(c)}>Email de Suporte</label><input value={form.support_email} onChange={e=>setForm({...form,support_email:e.target.value})} placeholder="suporte@empresa.com" style={inp(c)}/></div>
       </div>
-
+ 
       <div style={{display:"flex",gap:"10px"}}>
         <button onClick={save} disabled={creating} style={btnP(c,creating)}>{creating?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<CheckCircle size={14}/>}{creating?"Salvando...":editId?"Salvar":"Criar Automação"}</button>
-        <button onClick={()=>{setShowCreate(false);setEditId(null);setSeqMessages([{message_template:"",delay_minutes:0}]);}} style={btnS(c)}>Cancelar</button>
+        <button onClick={()=>{setShowCreate(false);setEditId(null);setPayloadFields(null);setSeqMessages([{message_template:"",delay_minutes:0}]);}} style={btnS(c)}>Cancelar</button>
       </div>
     </div>}
-
+ 
     {/* List */}
     {tab==="list"&&<div style={card(c)}>
       <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Suas Automações</h3>
@@ -410,7 +473,7 @@ function AutomationsPage(){
       </tr></thead><tbody>
         {automations.map(a=><tr key={a.id} onMouseEnter={e=>e.currentTarget.style.background=c.bgCardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
           <td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{a.name}</td>
-          <td style={{padding:"10px 12px",fontSize:"12px",color:c.textSec,textTransform:"capitalize"}}>{a.platform}</td>
+          <td style={{padding:"10px 12px",fontSize:"12px",color:c.textSec}}>{platformLabel(a.platform)}</td>
           <td style={{padding:"10px 12px",fontSize:"12px",color:c.textSec}}>{eventEmoji(a.event_type)} {eventLabel(a.event_type)}</td>
           <td style={{padding:"10px 12px",fontSize:"13px",color:c.ok,fontWeight:"600"}}>{a.total_sent}</td>
           <td style={{padding:"10px 12px"}}>
@@ -431,19 +494,19 @@ function AutomationsPage(){
         </tr>)}
       </tbody></table></div>}
     </div>}
-
+ 
     {/* Logs */}
     {tab==="logs"&&<div style={card(c)}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
         <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico de Envios Automáticos</h3>
         <button onClick={()=>logFilter?viewFailures({id:logFilter.automationId,name:logFilter.automationName}):clearLogFilter()} style={{...btnS(c),padding:"6px 12px",fontSize:"11px"}}><RefreshCw size={12}/>Atualizar</button>
       </div>
-
+ 
       {logFilter&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:c.dangerSoft,borderRadius:"10px",padding:"10px 14px",marginBottom:"12px",border:`1px solid ${c.danger}33`}}>
         <span style={{fontSize:"13px",color:c.danger,fontWeight:"600"}}>Mostrando apenas as falhas de: {logFilter.automationName}</span>
         <button onClick={clearLogFilter} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,fontSize:"12px",fontWeight:"600",display:"flex",alignItems:"center",gap:"4px"}}><X size={14}/>Limpar filtro</button>
       </div>}
-
+ 
       {loadingLogs?<div style={{textAlign:"center",padding:"30px"}}><RefreshCw size={20} color={c.textMut} style={{animation:"spin 1s linear infinite"}}/></div>:
       logs.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>{logFilter?"Nenhuma falha registrada para esta automação.":"Nenhum envio automático registrado ainda."}</p>:
       <><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
@@ -451,12 +514,12 @@ function AutomationsPage(){
       </tr></thead><tbody>
         {logs.map(l=><tr key={l.id}>
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.textMut}}>{l.created_at?new Date(l.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</td>
-          <td style={{padding:"8px 12px",fontSize:"12px",color:c.textSec,textTransform:"capitalize"}}>{l.platform}</td>
+          <td style={{padding:"8px 12px",fontSize:"12px",color:c.textSec}}>{platformLabel(l.platform)}</td>
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.textSec}}>{eventEmoji(l.event_type)} {eventLabel(l.event_type)}</td>
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.text}}>{l.buyer_name||"—"}</td>
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.textMut,fontFamily:"monospace"}}>{l.buyer_phone||"—"}</td>
           <td style={{padding:"8px 12px",fontSize:"12px",color:c.textSec}}>{l.product_name||"—"}</td>
-          <td style={{padding:"8px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:l.status==="sent"?c.okSoft:l.status==="failed"?c.dangerSoft:c.warnSoft,color:statusColor(l.status)}}>{statusLabel(l.status)}</span></td>
+          <td style={{padding:"8px 12px"}}><span title={l.error_message||""} style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:l.status==="sent"?c.okSoft:l.status==="failed"?c.dangerSoft:c.warnSoft,color:statusColor(l.status)}}>{statusLabel(l.status)}</span></td>
           <td style={{padding:"8px 12px"}}>{l.status==="failed"&&<button onClick={async()=>{try{await automationsApi.resend(l.id);setToast({msg:`Reenviado para ${l.buyer_phone}!`,type:"success"});if(logFilter)viewFailures({id:logFilter.automationId,name:logFilter.automationName});else load();}catch(e){setToast({msg:e.response?.data?.error||"Falha ao reenviar",type:"error"});}}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px",display:"flex",alignItems:"center",gap:"4px",fontSize:"11px",fontWeight:"600"}}><RefreshCw size={13}/>Reenviar</button>}</td>
         </tr>)}
       </tbody></table></div>
@@ -1576,7 +1639,7 @@ function GroupEventsPage(){
 }
 
 // ==========================================
-// NOVA GroupCampaignsPage - Adicionar no App.jsx
+// GroupCampaignsPage
 // ==========================================
  
 function GroupCampaignsPage(){
@@ -1589,15 +1652,18 @@ function GroupCampaignsPage(){
   const[loadingDetail,setLoadingDetail]=useState(false);
   const[tab,setTab]=useState("list");
  
-  // Form state
-  const[form,setForm]=useState({name:"",slug:"",description:"",max_members_per_group:250,welcome_message:"",meta_pixel_id:""});
+  const emptyForm={name:"",slug:"",description:"",max_members_per_group:null,welcome_message:"",meta_pixel_id:"",
+    auto_create_groups:false,min_available_groups:2,create_groups_on_start:false,groups_prefix:"",groups_count:2};
+  const[form,setForm]=useState(emptyForm);
  
-  // Add groups state
   const[showAddGroups,setShowAddGroups]=useState(false);const[selectedGroups,setSelectedGroups]=useState([]);
  
-  // Mass send state
+  const[showCreateGroups,setShowCreateGroups]=useState(false);const[newGroupsPrefix,setNewGroupsPrefix]=useState("");
+  const[newGroupsCount,setNewGroupsCount]=useState(2);const[creatingGroups,setCreatingGroups]=useState(false);
+ 
   const[showMassSend,setShowMassSend]=useState(false);const[massText,setMassText]=useState("");const[massMedia,setMassMedia]=useState(null);
   const[massSending,setMassSending]=useState(false);const[massMentionAll,setMassMentionAll]=useState(false);
+  const[massScheduled,setMassScheduled]=useState("");
  
   const load=async()=>{try{const[cRes,gRes]=await Promise.all([groupCampaignsApi.list(),groupsApi.list()]);setCampaigns(cRes.data.campaigns||[]);setGroups(gRes.data.groups||[]);}catch(e){}finally{setLoading(false);}};
   useEffect(()=>{load();},[]);
@@ -1611,22 +1677,27 @@ function GroupCampaignsPage(){
     setCreating(true);
     try{
       if(editId){
-        await groupCampaignsApi.update(editId,form);setToast({msg:"Campanha atualizada!",type:"success"});
+        const{create_groups_on_start,groups_prefix,groups_count,...updateData}=form;
+        await groupCampaignsApi.update(editId,updateData);setToast({msg:"Campanha atualizada!",type:"success"});
       }else{
-        await groupCampaignsApi.create(form);setToast({msg:"Campanha criada!",type:"success"});
+        const{data}=await groupCampaignsApi.create(form);
+        setToast({msg:form.create_groups_on_start?`Campanha criada com ${data.groups_created??form.groups_count} grupo(s)!`:"Campanha criada!",type:"success"});
       }
-      setShowCreate(false);setEditId(null);setForm({name:"",slug:"",description:"",max_members_per_group:250,welcome_message:"",meta_pixel_id:""});load();
+      setShowCreate(false);setEditId(null);setForm(emptyForm);load();
     }catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}finally{setCreating(false);}
   };
  
   const startEdit=(camp)=>{
-    setForm({name:camp.name,slug:camp.slug,description:camp.description||"",max_members_per_group:camp.max_members_per_group||250,welcome_message:camp.welcome_message||"",meta_pixel_id:camp.meta_pixel_id||""});
+    setForm({name:camp.name,slug:camp.slug,description:camp.description||"",max_members_per_group:camp.max_members_per_group||null,
+      welcome_message:camp.welcome_message||"",meta_pixel_id:camp.meta_pixel_id||"",
+      auto_create_groups:camp.auto_create_groups||false,min_available_groups:camp.min_available_groups||2,
+      create_groups_on_start:false,groups_prefix:"",groups_count:2});
     setEditId(camp.id);setShowCreate(true);
   };
  
   const deleteCampaign=async(camp)=>{
     if(!confirm(`Remover campanha "${camp.name}"?`))return;
-    try{await groupCampaignsApi.delete(camp.id);setToast({msg:"Removida!",type:"success"});if(selectedCampaign?.id===camp.id){setSelectedCampaign(null);setCampaignDetail(null);}load();}catch(e){setToast({msg:"Erro",type:"error"});}
+    try{await groupCampaignsApi.delete(camp.id);setToast({msg:"Removida!",type:"success"});if(selectedCampaign?.id===camp.id){setSelectedCampaign(null);setCampaignDetail(null);setTab("list");}load();}catch(e){setToast({msg:"Erro",type:"error"});}
   };
  
   const toggleActive=async(camp)=>{
@@ -1643,6 +1714,16 @@ function GroupCampaignsPage(){
     }catch(e){setToast({msg:"Erro ao adicionar",type:"error"});}
   };
  
+  const createGroupsNow=async()=>{
+    if(!newGroupsCount||newGroupsCount<1){setToast({msg:"Informe a quantidade",type:"error"});return;}
+    setCreatingGroups(true);
+    try{
+      const{data}=await groupCampaignsApi.createGroups(selectedCampaign.id,{prefix:newGroupsPrefix||selectedCampaign.name,count:parseInt(newGroupsCount)});
+      setToast({msg:`${data.created??newGroupsCount} grupo(s) criado(s)!`,type:"success"});
+      setShowCreateGroups(false);setNewGroupsPrefix("");setNewGroupsCount(2);loadDetail(selectedCampaign.id);
+    }catch(e){setToast({msg:e.response?.data?.error||"Erro ao criar grupos",type:"error"});}finally{setCreatingGroups(false);}
+  };
+ 
   const removeGroupFromCampaign=async(groupId)=>{
     try{await groupCampaignsApi.removeGroup(selectedCampaign.id,groupId);setToast({msg:"Grupo removido!",type:"success"});loadDetail(selectedCampaign.id);}catch(e){setToast({msg:"Erro",type:"error"});}
   };
@@ -1656,10 +1737,12 @@ function GroupCampaignsPage(){
     setMassSending(true);
     try{
       const data={text:massText||'',mentionsEveryOne:massMentionAll};
+      if(massScheduled)data.scheduled_at=massScheduled;
       if(massMedia){data.media=massMedia.isUrl?massMedia.url:(massMedia.url||'');data.mediaType=massMedia.type;data.mimetype=massMedia.file?.type||'image/png';data.fileName=massMedia.name||'file';data.caption=massText||'';}
       await groupCampaignsApi.massSend(selectedCampaign.id,data);
-      setToast({msg:"Disparo iniciado!",type:"success"});setShowMassSend(false);setMassText("");setMassMedia(null);
-    }catch(e){setToast({msg:"Erro",type:"error"});}finally{setMassSending(false);}
+      setToast({msg:massScheduled?`Agendado para ${new Date(massScheduled).toLocaleString("pt-BR")}!`:"Disparo iniciado!",type:"success"});
+      setShowMassSend(false);setMassText("");setMassMedia(null);setMassScheduled("");setMassMentionAll(false);
+    }catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}finally{setMassSending(false);}
   };
  
   const copyLink=(slug)=>{const url=`https://link.zapechat.cloud/${slug}`;navigator.clipboard?.writeText(url);setToast({msg:"Link copiado!",type:"success"});};
@@ -1673,7 +1756,7 @@ function GroupCampaignsPage(){
     {/* Add Groups Modal */}
     {showAddGroups&&<div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={()=>setShowAddGroups(false)}>
       <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"500px",width:"100%",border:`1px solid ${c.border}`,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{margin:"0 0 16px",fontSize:"17px",fontWeight:"700",color:c.text}}>Adicionar Grupos</h3>
+        <h3 style={{margin:"0 0 16px",fontSize:"17px",fontWeight:"700",color:c.text}}>Adicionar Grupos Existentes</h3>
         <div style={{maxHeight:"400px",overflowY:"auto",border:`1px solid ${c.border}`,borderRadius:"10px",marginBottom:"16px"}}>
           {groups.map(g=>{const checked=selectedGroups.includes(g.group_jid);const alreadyIn=campaignDetail?.groups?.some(cg=>cg.group_jid===g.group_jid);return<div key={g.id} onClick={()=>{if(alreadyIn)return;setSelectedGroups(prev=>prev.includes(g.group_jid)?prev.filter(j=>j!==g.group_jid):[...prev,g.group_jid]);}} style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 12px",cursor:alreadyIn?"default":"pointer",background:checked?c.accentSoft:alreadyIn?c.bgInput:"transparent",borderBottom:`1px solid ${c.border}`,opacity:alreadyIn?0.5:1}}>
             <input type="checkbox" checked={checked} disabled={alreadyIn} readOnly style={{accentColor:c.accent}}/>
@@ -1684,15 +1767,27 @@ function GroupCampaignsPage(){
       </div>
     </div>}
  
+    {/* Create Groups Modal */}
+    {showCreateGroups&&<div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={()=>setShowCreateGroups(false)}>
+      <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"440px",width:"100%",border:`1px solid ${c.border}`}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{margin:"0 0 6px",fontSize:"17px",fontWeight:"700",color:c.text}}>Criar Novos Grupos</h3>
+        <p style={{margin:"0 0 18px",fontSize:"12px",color:c.textMut}}>Os grupos serão criados no WhatsApp conectado e vinculados a esta campanha.</p>
+        <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Prefixo do nome</label><input value={newGroupsPrefix} onChange={e=>setNewGroupsPrefix(e.target.value)} placeholder={selectedCampaign?.name||"Nome do grupo"} style={inp(c)}/><span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>Ficará: "{newGroupsPrefix||selectedCampaign?.name} - Grupo 1", "- Grupo 2"...</span></div>
+        <div style={{marginBottom:"20px"}}><label style={lbl(c)}>Quantidade</label><input type="number" min="1" max="20" value={newGroupsCount} onChange={e=>setNewGroupsCount(e.target.value)} style={{...inp(c),maxWidth:"140px"}}/></div>
+        <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}><button onClick={()=>setShowCreateGroups(false)} style={btnS(c)}>Cancelar</button><button onClick={createGroupsNow} disabled={creatingGroups} style={btnP(c,creatingGroups)}>{creatingGroups?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<Plus size={14}/>}{creatingGroups?"Criando...":"Criar Grupos"}</button></div>
+      </div>
+    </div>}
+ 
     {/* Mass Send Modal */}
     {showMassSend&&<div style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={()=>setShowMassSend(false)}>
-      <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"500px",width:"100%",border:`1px solid ${c.border}`}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:c.bgCard,borderRadius:"20px",padding:"28px",maxWidth:"520px",width:"100%",border:`1px solid ${c.border}`,maxHeight:"88vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
         <h3 style={{margin:"0 0 16px",fontSize:"17px",fontWeight:"700",color:c.text}}>Disparo para {campaignDetail?.groups?.length||0} grupos</h3>
         <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Mensagem</label><textarea value={massText} onChange={e=>setMassText(e.target.value)} rows={5} style={{...inp(c),resize:"vertical"}} placeholder="Mensagem para todos os grupos da campanha..."/></div>
         <label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Paperclip size={13}/>Mídia (opcional)</label>
         <MediaPicker selected={massMedia} onSelect={setMassMedia} onRemove={()=>setMassMedia(null)}/>
+        <div style={{marginBottom:"14px"}}><label style={{...lbl(c),display:"flex",alignItems:"center",gap:"6px"}}><Calendar size={12}/>Agendar (opcional)</label><input value={massScheduled} onChange={e=>setMassScheduled(e.target.value)} type="datetime-local" style={{...inp(c),maxWidth:"260px"}}/><span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>Deixe vazio para enviar agora</span></div>
         <label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer",marginBottom:"16px"}}><input type="checkbox" checked={massMentionAll} onChange={e=>setMassMentionAll(e.target.checked)} style={{accentColor:c.accent}}/>Mencionar todos</label>
-        <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}><button onClick={()=>setShowMassSend(false)} style={btnS(c)}>Cancelar</button><button onClick={massSend} disabled={massSending||(!massText&&!massMedia)} style={btnP(c,massSending)}>{massSending?"Enviando...":"Disparar"}</button></div>
+        <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}><button onClick={()=>setShowMassSend(false)} style={btnS(c)}>Cancelar</button><button onClick={massSend} disabled={massSending||(!massText&&!massMedia)} style={btnP(c,massSending||(!massText&&!massMedia))}>{massSending?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:massScheduled?<Calendar size={14}/>:<Send size={14}/>}{massSending?"Enviando...":massScheduled?"Agendar Disparo":"Disparar Agora"}</button></div>
       </div>
     </div>}
  
@@ -1702,7 +1797,7 @@ function GroupCampaignsPage(){
         <button onClick={()=>{setTab("list");setSelectedCampaign(null);}} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="list"?c.accent:c.bgInput,color:tab==="list"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>Campanhas</button>
         {selectedCampaign&&<button onClick={()=>setTab("detail")} style={{padding:"8px 18px",borderRadius:"8px",border:"none",background:tab==="detail"?c.accent:c.bgInput,color:tab==="detail"?"white":c.textSec,fontSize:"13px",fontWeight:"600",cursor:"pointer"}}>{selectedCampaign.name}</button>}
       </div>
-      <button onClick={()=>{setShowCreate(true);setEditId(null);setForm({name:"",slug:"",description:"",max_members_per_group:250,welcome_message:"",meta_pixel_id:""});}} style={btnP(c,false)}><Plus size={14}/>Nova Campanha</button>
+      <button onClick={()=>{setShowCreate(true);setEditId(null);setForm(emptyForm);}} style={btnP(c,false)}><Plus size={14}/>Nova Campanha</button>
     </div>
  
     {/* Create/Edit Form */}
@@ -1710,17 +1805,46 @@ function GroupCampaignsPage(){
       <h3 style={{margin:"0 0 16px",fontSize:"16px",fontWeight:"700",color:c.text}}>{editId?"Editar":"Nova"} Campanha de Grupos</h3>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"14px"}}>
         <div><label style={lbl(c)}>Nome</label><input value={form.name} onChange={e=>{setForm({...form,name:e.target.value,slug:editId?form.slug:generateSlug(e.target.value)});}} placeholder="Ex: Imersão NR-1" style={inp(c)}/></div>
-        <div><label style={lbl(c)}>Slug (URL)</label><div style={{display:"flex",alignItems:"center",gap:"4px"}}><span style={{fontSize:"12px",color:c.textMut,whiteSpace:"nowrap"}}>link.zapechat.cloud/</span><input value={form.slug} onChange={e=>setForm({...form,slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')})} placeholder="imersao-nr1" style={{...inp(c),flex:1}}/></div></div>
+        <div><label style={lbl(c)}>Slug (URL)</label><div style={{display:"flex",alignItems:"center",gap:"4px"}}><span style={{fontSize:"12px",color:c.textMut,whiteSpace:"nowrap"}}>link.zapechat.cloud/</span><input value={form.slug} onChange={e=>setForm({...form,slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')})} placeholder="nome-da-campanha" style={{...inp(c),flex:1}}/></div></div>
       </div>
       <div style={{marginBottom:"14px"}}><label style={lbl(c)}>Descrição (opcional)</label><input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Descrição da campanha" style={inp(c)}/></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"14px"}}>
-        <div><label style={lbl(c)}>Limite de membros por grupo</label><input type="number" value={form.max_members_per_group} onChange={e=>setForm({...form,max_members_per_group:parseInt(e.target.value)||250})} style={inp(c)}/></div>
+        <div><label style={lbl(c)}>Limite de membros por grupo (opcional)</label>
+          <input type="number" value={form.max_members_per_group??""} onChange={e=>setForm({...form,max_members_per_group:e.target.value===""?null:(parseInt(e.target.value)||null)})} placeholder="Ex: 250" style={inp(c)}/>
+          <span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>Usado pela rotação do link. Vazio = sem controle de lotação.</span>
+        </div>
         <div><label style={lbl(c)}>Meta Pixel ID (opcional)</label><input value={form.meta_pixel_id} onChange={e=>setForm({...form,meta_pixel_id:e.target.value})} placeholder="Ex: 123456789012345" style={inp(c)}/></div>
       </div>
+ 
+      {/* Criar grupos agora (só ao criar) */}
+      {!editId&&<div style={{background:c.bgInput,borderRadius:"14px",padding:"18px",border:`1px solid ${c.border}`,marginBottom:"14px"}}>
+        <label style={{display:"flex",alignItems:"center",gap:"8px",fontSize:"14px",fontWeight:"700",color:c.text,cursor:"pointer",marginBottom:form.create_groups_on_start?"14px":0}}>
+          <input type="checkbox" checked={form.create_groups_on_start} onChange={e=>setForm({...form,create_groups_on_start:e.target.checked})} style={{accentColor:c.accent}}/>
+          <Plus size={15} color={c.accent}/>Criar grupos automaticamente agora
+        </label>
+        {form.create_groups_on_start&&<div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:"14px"}}>
+          <div><label style={lbl(c)}>Prefixo do nome</label><input value={form.groups_prefix} onChange={e=>setForm({...form,groups_prefix:e.target.value})} placeholder={form.name||"Nome da campanha"} style={inp(c)}/><span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>Ficará: "{form.groups_prefix||form.name||"Campanha"} - Grupo 1", "- Grupo 2"...</span></div>
+          <div><label style={lbl(c)}>Quantidade</label><input type="number" min="1" max="20" value={form.groups_count} onChange={e=>setForm({...form,groups_count:parseInt(e.target.value)||1})} style={inp(c)}/></div>
+        </div>}
+      </div>}
+ 
+      {/* Auto-criação contínua */}
+      <div style={{background:c.bgInput,borderRadius:"14px",padding:"18px",border:`1px solid ${c.border}`,marginBottom:"14px"}}>
+        <label style={{display:"flex",alignItems:"center",gap:"8px",fontSize:"14px",fontWeight:"700",color:c.text,cursor:"pointer",marginBottom:form.auto_create_groups?"14px":0}}>
+          <input type="checkbox" checked={form.auto_create_groups} onChange={e=>setForm({...form,auto_create_groups:e.target.checked})} style={{accentColor:c.accent}}/>
+          <Zap size={15} color={c.accent}/>Criar novos grupos automaticamente conforme lotam
+        </label>
+        {form.auto_create_groups&&<div>
+          <label style={lbl(c)}>Manter sempre disponíveis</label>
+          <input type="number" min="1" max="10" value={form.min_available_groups} onChange={e=>setForm({...form,min_available_groups:parseInt(e.target.value)||1})} style={{...inp(c),maxWidth:"140px"}}/>
+          <span style={{fontSize:"11px",color:c.textMut,marginTop:"4px",display:"block"}}>Quando restarem menos que isso com vaga, um novo grupo é criado automaticamente.</span>
+        </div>}
+      </div>
+ 
       <div style={{marginBottom:"18px"}}><label style={lbl(c)}>Mensagem de Boas-vindas (opcional)</label><textarea value={form.welcome_message} onChange={e=>setForm({...form,welcome_message:e.target.value})} rows={3} style={{...inp(c),resize:"vertical"}} placeholder="Olá! Bem-vindo(a) ao grupo! 🎉"/></div>
       <div style={{display:"flex",gap:"10px"}}>
-        <button onClick={save} disabled={creating} style={btnP(c,creating)}>{creating?"Salvando...":editId?"Salvar":"Criar Campanha"}</button>
-        <button onClick={()=>{setShowCreate(false);setEditId(null);}} style={btnS(c)}>Cancelar</button>
+        <button onClick={save} disabled={creating} style={btnP(c,creating)}>{creating?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:<CheckCircle size={14}/>}{creating?"Salvando...":editId?"Salvar":"Criar Campanha"}</button>
+        <button onClick={()=>{setShowCreate(false);setEditId(null);setForm(emptyForm);}} style={btnS(c)}>Cancelar</button>
       </div>
     </div>}
  
@@ -1729,16 +1853,18 @@ function GroupCampaignsPage(){
       <h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Suas Campanhas</h3>
       {campaigns.length===0?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"30px 0"}}>Nenhuma campanha criada. Clique em "Nova Campanha".</p>:
       <div>{campaigns.map(camp=>(
-        <div key={camp.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px",borderRadius:"12px",marginBottom:"8px",background:c.bgInput,border:`1px solid ${c.border}`,cursor:"pointer",transition:"all 0.15s"}} onClick={()=>selectCampaign(camp)} onMouseEnter={e=>e.currentTarget.style.borderColor=c.accent+"44"} onMouseLeave={e=>e.currentTarget.style.borderColor=c.border}>
+        <div key={camp.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px",borderRadius:"12px",marginBottom:"8px",background:c.bgInput,border:`1px solid ${c.border}`,cursor:"pointer",transition:"all 0.15s",flexWrap:"wrap",gap:"10px"}} onClick={()=>selectCampaign(camp)} onMouseEnter={e=>e.currentTarget.style.borderColor=c.accent+"44"} onMouseLeave={e=>e.currentTarget.style.borderColor=c.border}>
           <div style={{display:"flex",alignItems:"center",gap:"14px"}}>
             <div style={{width:"44px",height:"44px",borderRadius:"12px",background:camp.is_active?c.accentSoft:c.bgCard,display:"flex",alignItems:"center",justifyContent:"center"}}><Zap size={20} color={camp.is_active?c.accent:c.textMut}/></div>
             <div>
               <div style={{fontSize:"14px",fontWeight:"700",color:c.text}}>{camp.name}</div>
               <div style={{fontSize:"12px",color:c.accent,fontFamily:"monospace",marginTop:"2px"}}>link.zapechat.cloud/{camp.slug}</div>
               <div style={{fontSize:"11px",color:c.textMut,marginTop:"2px"}}>{camp.total_groups||0} grupos · {camp.total_members||0} membros · {camp.total_clicks||0} cliques</div>
+              {(!camp.total_groups||camp.total_groups==0)&&<div style={{fontSize:"11px",color:c.warn,fontWeight:"600",marginTop:"4px"}}>⚠️ Nenhum grupo vinculado — o link não redireciona</div>}
             </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:"8px"}} onClick={e=>e.stopPropagation()}>
+          <div style={{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
+            <button onClick={()=>selectCampaign(camp)} style={{...btnP(c,false),padding:"6px 12px",fontSize:"11px"}}><Users size={12}/>Gerenciar Grupos</button>
             <button onClick={()=>copyLink(camp.slug)} style={{...btnS(c),padding:"6px 12px",fontSize:"11px"}}>Copiar Link</button>
             <button onClick={()=>toggleActive(camp)} style={{background:"none",border:"none",cursor:"pointer",color:camp.is_active?c.ok:c.danger}}>
               {camp.is_active?<ToggleRight size={20}/>:<ToggleLeft size={20}/>}
@@ -1764,13 +1890,14 @@ function GroupCampaignsPage(){
  
         {/* Link */}
         <div style={{...card(c),marginBottom:"16px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:"12px"}}>
             <div>
               <label style={lbl(c)}>Link da Campanha</label>
               <div style={{fontSize:"15px",color:c.accent,fontFamily:"monospace",fontWeight:"600"}}>link.zapechat.cloud/{campaignDetail.campaign?.slug}</div>
               {campaignDetail.campaign?.meta_pixel_id&&<div style={{fontSize:"11px",color:c.textMut,marginTop:"4px"}}>Meta Pixel: {campaignDetail.campaign.meta_pixel_id}</div>}
+              {campaignDetail.campaign?.auto_create_groups&&<div style={{fontSize:"11px",color:c.accent,marginTop:"4px",fontWeight:"600"}}>⚡ Auto-criação ativa (mantém {campaignDetail.campaign.min_available_groups||2} grupos disponíveis)</div>}
             </div>
-            <div style={{display:"flex",gap:"8px"}}>
+            <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
               <button onClick={()=>copyLink(campaignDetail.campaign?.slug)} style={btnP(c,false)}>Copiar Link</button>
               <button onClick={()=>setShowMassSend(true)} style={{...btnS(c),color:c.violet}}><Mail size={14}/>Disparar</button>
               <button onClick={updateMembers} style={{...btnS(c)}}><RefreshCw size={14}/>Atualizar</button>
@@ -1780,18 +1907,21 @@ function GroupCampaignsPage(){
  
         {/* Groups */}
         <div style={card(c)}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px",flexWrap:"wrap",gap:"10px"}}>
             <h3 style={{margin:0,fontSize:"15px",fontWeight:"700",color:c.text}}>Grupos ({campaignDetail.groups?.length||0})</h3>
-            <button onClick={()=>{setShowAddGroups(true);setSelectedGroups([]);}} style={{...btnP(c,false),padding:"8px 14px",fontSize:"12px"}}><Plus size={13}/>Adicionar Grupos</button>
+            <div style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setShowCreateGroups(true);setNewGroupsPrefix("");setNewGroupsCount(2);}} style={{...btnS(c),padding:"8px 14px",fontSize:"12px",color:c.accent}}><Plus size={13}/>Criar Novos</button>
+              <button onClick={()=>{setShowAddGroups(true);setSelectedGroups([]);}} style={{...btnP(c,false),padding:"8px 14px",fontSize:"12px"}}><Plus size={13}/>Adicionar Existentes</button>
+            </div>
           </div>
-          {(!campaignDetail.groups||campaignDetail.groups.length===0)?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"20px"}}>Nenhum grupo vinculado. Adicione grupos pra ativar o link rotativo.</p>:
+          {(!campaignDetail.groups||campaignDetail.groups.length===0)?<p style={{color:c.textMut,fontSize:"13px",textAlign:"center",padding:"20px"}}>Nenhum grupo vinculado. Crie novos ou adicione grupos existentes pra ativar o link.</p>:
           <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
             {["Grupo","Membros","Ocupação","Status","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
           </tr></thead><tbody>
-            {campaignDetail.groups.map(g=>{const pct=campaignDetail.campaign?.max_members_per_group?Math.round((g.current_members/(campaignDetail.campaign.max_members_per_group))*100):0;return<tr key={g.group_jid}>
+            {campaignDetail.groups.map(g=>{const max=campaignDetail.campaign?.max_members_per_group;const pct=max?Math.round((g.current_members/max)*100):0;return<tr key={g.group_jid}>
               <td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{g.group_name||g.group_jid}</td>
-              <td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{g.current_members}/{campaignDetail.campaign?.max_members_per_group||250}</td>
-              <td style={{padding:"10px 12px"}}><div style={{width:"80px",height:"6px",borderRadius:"3px",background:c.bgCard}}><div style={{width:`${Math.min(pct,100)}%`,height:"100%",borderRadius:"3px",background:pct>=90?c.danger:pct>=70?c.warn:c.ok}}/></div></td>
+              <td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{g.current_members}{max?`/${max}`:""}</td>
+              <td style={{padding:"10px 12px"}}>{max?<div style={{width:"80px",height:"6px",borderRadius:"3px",background:c.bgCard}}><div style={{width:`${Math.min(pct,100)}%`,height:"100%",borderRadius:"3px",background:pct>=90?c.danger:pct>=70?c.warn:c.ok}}/></div>:<span style={{fontSize:"11px",color:c.textMut}}>—</span>}</td>
               <td style={{padding:"10px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:g.is_full?c.dangerSoft:c.okSoft,color:g.is_full?c.danger:c.ok}}>{g.is_full?"Lotado":"Aberto"}</span></td>
               <td style={{padding:"10px 12px"}}><button onClick={()=>removeGroupFromCampaign(g.id)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}}><Trash2 size={14}/></button></td>
             </tr>;})}
