@@ -52,7 +52,7 @@ const badge=(c,s)=>{const m=statusMap[s]||{l:s,c:"textMut"};return{fontSize:"11p
 // ==================== TOAST ====================
 function Toast({msg,type,onClose}){
   const{dark}=useTheme();const c=C(dark);
-  useEffect(()=>{const t=setTimeout(onClose,4000);return()=>clearTimeout(t);},[]);
+  useEffect(()=>{const t=setTimeout(onClose,type==="error"?10000:4000);return()=>clearTimeout(t);},[]);
   const bg=type==="success"?c.okSoft:type==="error"?c.dangerSoft:c.warnSoft;
   const col=type==="success"?c.ok:type==="error"?c.danger:c.warn;
   return(<div style={{position:"fixed",top:"20px",right:"20px",zIndex:9999,background:bg,border:`1px solid ${col}33`,borderRadius:"14px",padding:"14px 20px",display:"flex",alignItems:"center",gap:"10px",color:col,fontSize:"14px",fontWeight:"600",boxShadow:c.shadowLg,maxWidth:"400px",animation:"slideIn 0.3s ease"}}>
@@ -68,8 +68,8 @@ function MediaPicker({onSelect,selected,onRemove}){
 
   const handleFile=async(e)=>{const file=e.target.files[0];if(!file)return;
     const sizeMB=file.size/(1024*1024);
-    // Arquivos grandes (>5MB) ou vídeos/áudios vão pro MinIO
-    if(sizeMB>5||activeType==="video"||activeType==="audio"){
+    // >500KB, vídeo, áudio ou documento vão pro MinIO (base64 grande estoura o banco)
+    if(sizeMB>0.5||activeType==="video"||activeType==="audio"||activeType==="document"){
       setUploading(true);
       try{
         const reader=new FileReader();
@@ -81,7 +81,6 @@ function MediaPicker({onSelect,selected,onRemove}){
         };
         reader.readAsDataURL(file);
       }catch(err){console.error("Upload falhou:",err);setUploading(false);
-        // Fallback: usar base64 direto
         const reader2=new FileReader();
         reader2.onload=()=>{onSelect({file,type:activeType,name:file.name,size:file.size,preview:activeType==="image"?reader2.result:null,url:reader2.result});setActiveType(null);};
         reader2.readAsDataURL(file);
@@ -808,7 +807,7 @@ function MassSendPage(){
   };
 
   // Edit modal
-  const[editCampaign,setEditCampaign]=useState(null);const[editName,setEditName]=useState("");const[editScheduled,setEditScheduled]=useState("");
+  const[editCampaign,setEditCampaign]=useState(null);const[editName,setEditName]=useState("");const[editScheduled,setEditScheduled]=useState("");const[editMessage,setEditMessage]=useState("");
 
   useEffect(()=>{(async()=>{try{const[cRes,tRes]=await Promise.all([campaignsApi.list(),contactsApi.tags()]);
     // Filtrar: só campanhas que NÃO começam com "Grupo:"
@@ -839,9 +838,13 @@ function MassSendPage(){
     }catch(err){setToast({msg:err.response?.data?.error||"Falha",type:"error"});}finally{setRunning(false);}
   };
 
-  const cancelCampaign=async(cp)=>{if(!confirm(`Cancelar "${cp.name}"?`))return;try{await campaignsApi.cancel(cp.id);setToast({msg:"Campanha cancelada!",type:"success"});const{data}=await campaignsApi.list();setCampaigns((data.campaigns||[]).filter(c=>!c.name?.startsWith("Grupo:")));}catch(e){setToast({msg:"Erro",type:"error"});}};
+  const cancelCampaign=async(cp)=>{
+    const quando=cp.scheduled_at?new Date(cp.scheduled_at).toLocaleString("pt-BR"):"envio imediato";
+    if(!confirm(`Cancelar o disparo "${cp.name?.replace("Grupo: ","")}"?\n\nAgendado para: ${quando}\n\nEsta ação não pode ser desfeita.`))return;
+    try{await campaignsApi.cancel(cp.id);setToast({msg:"Cancelado!",type:"success"});load();}catch(e){setToast({msg:"Erro",type:"error"});}
+  };
   const deleteCampaign=async(cp)=>{if(!confirm(`Remover "${cp.name}"?`))return;try{await campaignsApi.delete(cp.id);setToast({msg:"Removida!",type:"success"});const{data}=await campaignsApi.list();setCampaigns((data.campaigns||[]).filter(c=>!c.name?.startsWith("Grupo:")));}catch(e){setToast({msg:"Erro",type:"error"});}};
-  const saveEdit=async()=>{if(!editCampaign)return;try{await campaignsApi.update(editCampaign.id,{name:editName,scheduled_at:editScheduled||null});setToast({msg:"Atualizado!",type:"success"});setEditCampaign(null);const{data}=await campaignsApi.list();setCampaigns((data.campaigns||[]).filter(c=>!c.name?.startsWith("Grupo:")));}catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}};
+  const saveEdit=async()=>{if(!editCampaign)return;try{await campaignsApi.update(editCampaign.id,{name:editName,message:editMessage,scheduled_at:editScheduled||null});setToast({msg:"Atualizado!",type:"success"});setEditCampaign(null);const{data}=await campaignsApi.list();setCampaigns((data.campaigns||[]).filter(c=>!c.name?.startsWith("Grupo:")));}catch(e){setToast({msg:e.response?.data?.error||"Erro",type:"error"});}};
 
   const stS=s=>({completed:{bg:c.okSoft,col:c.ok,l:"Concluída"},running:{bg:c.warnSoft,col:c.warn,l:"Enviando"},scheduled:{bg:c.infoSoft,col:c.info,l:"Agendada"},draft:{bg:c.bgInput,col:c.textMut,l:"Rascunho"},paused:{bg:c.warnSoft,col:c.warn,l:"Pausada"},canceled:{bg:c.dangerSoft,col:c.danger,l:"Cancelada"}}[s]||{bg:c.bgInput,col:c.textMut,l:s});
   const canStart=name&&numbers.trim()&&(message||media);
@@ -914,15 +917,19 @@ function MassSendPage(){
     </div>
 
     {/* Histórico */}
-    {campaigns.length>0&&<div style={card(c)}><h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico de Disparos</h3><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Campanha","Total","Enviadas","Falhas","Status","Data","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}</tr></thead><tbody>{campaigns.map(cp=>{const st=stS(cp.status);return<tr key={cp.id}>
+    {campaigns.length>0&&<div style={card(c)}><h3 style={{margin:"0 0 14px",fontSize:"15px",fontWeight:"700",color:c.text}}>Histórico de Disparos</h3><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Campanha","Total","Enviadas","Falhas","Status","Agendado para","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}</tr></thead><tbody>{campaigns.map(cp=>{const st=stS(cp.status);return<tr key={cp.id}>
       <td style={{padding:"10px 12px",fontSize:"13px",fontWeight:"600",color:c.text}}>{cp.name}</td>
       <td style={{padding:"10px 12px",fontSize:"13px",color:c.textSec}}>{cp.total_recipients}</td>
       <td style={{padding:"10px 12px",fontSize:"13px",color:c.ok}}>{cp.sent_count}</td>
       <td style={{padding:"10px 12px",fontSize:"13px",color:cp.failed_count>0?c.danger:c.textMut}}>{cp.failed_count}</td>
       <td style={{padding:"10px 12px"}}><span style={{fontSize:"11px",fontWeight:"600",padding:"3px 8px",borderRadius:"6px",background:st.bg,color:st.col}}>{st.l}</span></td>
-      <td style={{padding:"10px 12px",fontSize:"12px",color:c.textMut}}>{cp.created_at?new Date(cp.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</td>
+      <td style={{padding:"10px 12px",fontSize:"12px"}} title={cp.created_at?"Criada em "+new Date(cp.created_at).toLocaleString("pt-BR"):""}>
+        {cp.scheduled_at
+          ?<span style={{color:cp.status==="scheduled"?c.info:c.textMut,fontWeight:cp.status==="scheduled"?"700":"400"}}>{new Date(cp.scheduled_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
+          :<span style={{color:c.textMut}}>Imediato</span>}
+      </td>
       <td style={{padding:"10px 12px",display:"flex",gap:"4px"}}>
-        {cp.status==="scheduled"&&<><button onClick={()=>{setEditCampaign(cp);setEditName(cp.name);setEditScheduled(cp.scheduled_at?new Date(cp.scheduled_at).toISOString().slice(0,16):"");}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}} title="Editar"><Edit size={14}/></button>
+        {cp.status==="scheduled"&&<><button onClick={()=>{setEditCampaign(cp);setEditName(cp.name);setEditMessage(cp.message||"");setEditScheduled(cp.scheduled_at?new Date(cp.scheduled_at).toISOString().slice(0,16):"");}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}} title="Editar"><Edit size={14}/></button>
         <button onClick={()=>cancelCampaign(cp)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}} title="Cancelar"><X size={14}/></button></>}
         {(cp.status==="completed"||cp.status==="canceled")&&<button onClick={()=>deleteCampaign(cp)} style={{background:"none",border:"none",cursor:"pointer",color:c.textMut,padding:"3px"}} title="Remover"><Trash2 size={14}/></button>}
       </td>
@@ -1133,6 +1140,8 @@ function GroupsPage(){
             <label style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"13px",color:c.textSec,cursor:"pointer",paddingBottom:"12px"}}><input type="checkbox" checked={massMentionAll} onChange={e=>setMassMentionAll(e.target.checked)} style={{accentColor:c.accent}}/>Mencionar todos</label>
           </div>
 
+{massScheduled&&new Date(massScheduled)<new Date()&&<div style={{background:c.warnSoft,border:`1px solid ${c.warn}44`,borderRadius:"10px",padding:"10px 14px",marginBottom:"12px",fontSize:"12px",color:c.warn,fontWeight:"600"}}>⚠️ O horário escolhido já passou — o disparo sairá no próximo minuto.</div>}
+			
           <button onClick={massSendToGroups} disabled={massSending||massSelectedGroups.length===0||(!massText&&!massMedia)} style={btnP(c,massSending||massSelectedGroups.length===0||(!massText&&!massMedia))}>{massSending?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:massScheduled?<Calendar size={14}/>:<Play size={14}/>}{massSending?"Enviando...":massScheduled?"Agendar Disparo":"Iniciar Disparo"}</button>
 
           {/* Histórico */}
@@ -1140,15 +1149,19 @@ function GroupsPage(){
             <h4 style={{margin:"0 0 12px",fontSize:"14px",fontWeight:"700",color:c.text}}>Histórico de Disparos em Grupos</h4>
             {massCampaigns.length===0?<p style={{fontSize:"12px",color:c.textMut}}>Nenhum disparo registrado.</p>:
             <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
-              {["Campanha","Total","Enviadas","Falhas","Status","Data","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 10px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
+              {["Campanha","Total","Enviadas","Falhas","Status","Agendado para","Ações"].map(h=><th key={h} style={{textAlign:"left",padding:"8px 10px",fontSize:"11px",fontWeight:"600",color:c.textMut,textTransform:"uppercase",borderBottom:`1px solid ${c.border}`}}>{h}</th>)}
             </tr></thead><tbody>
-              {massCampaigns.slice(0,10).map(cp=>{const st=stS(cp.status);return<tr key={cp.id}>
+              {massCampaigns.slice(0,25).map(cp=>{const st=stS(cp.status);return<tr key={cp.id} style={{opacity:cp.status==="canceled"?0.55:1}}>
                 <td style={{padding:"8px 10px",fontSize:"12px",fontWeight:"600",color:c.text}}>{cp.name?.replace("Grupo: ","")}</td>
                 <td style={{padding:"8px 10px",fontSize:"12px",color:c.textSec}}>{cp.total_recipients}</td>
                 <td style={{padding:"8px 10px",fontSize:"12px",color:c.ok}}>{cp.sent_count}</td>
                 <td style={{padding:"8px 10px",fontSize:"12px",color:cp.failed_count>0?c.danger:c.textMut}}>{cp.failed_count}</td>
                 <td style={{padding:"8px 10px"}}><span style={{fontSize:"10px",fontWeight:"600",padding:"2px 8px",borderRadius:"6px",background:st.bg,color:st.col}}>{st.l}</span></td>
-                <td style={{padding:"8px 10px",fontSize:"11px",color:c.textMut}}>{cp.created_at?new Date(cp.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</td>
+                <td style={{padding:"8px 10px",fontSize:"11px"}} title={cp.created_at?"Criada em "+new Date(cp.created_at).toLocaleString("pt-BR"):""}>
+                  {cp.scheduled_at
+                    ?<span style={{color:cp.status==="scheduled"?c.info:c.textMut,fontWeight:cp.status==="scheduled"?"700":"400"}}>{new Date(cp.scheduled_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
+                    :<span style={{color:c.textMut}}>Imediato</span>}
+                </td>
                 <td style={{padding:"8px 10px",display:"flex",gap:"4px"}}>
                   {cp.status==="scheduled"&&<><button onClick={()=>{setEditCampaign(cp);setEditName2(cp.name);setEditScheduled(cp.scheduled_at?new Date(cp.scheduled_at).toISOString().slice(0,16):"");setEditMessage(cp.message||"");}} style={{background:"none",border:"none",cursor:"pointer",color:c.info,padding:"3px"}} title="Editar"><Edit size={14}/></button>
                   <button onClick={()=>cancelCampaign(cp)} style={{background:"none",border:"none",cursor:"pointer",color:c.danger,padding:"3px"}} title="Cancelar"><X size={14}/></button></>}
